@@ -1,0 +1,30 @@
+﻿subscription_id = "71dcf7f8-6dda-4243-a84c-88833a4d8278"
+location        = "eastus2"
+environment     = "dev"
+project_name    = "aifoundry"
+resource_token  = "q4ow3p5e"
+resource_group_name = "rg-aifoundry-dev-q4ow3p5e"
+
+# Search Service
+search_service_name = "aisearch-q4ow3p5e"
+search_sku          = "free"
+
+# API Management
+apim_publisher_name  = "AI Foundry ITSM"
+apim_publisher_email = "admin@aifoundry.com"
+apim_sku             = "Developer"
+apim_sku_capacity    = 1
+
+# Storage
+storage_account_name = "stgq4ow3p5e"
+container_registry_name = "acrq4ow3p5e"
+key_vault_name = "kv-q4ow3p5e"
+
+# Tags
+tags = {
+  Environment = "dev"
+  Project     = "AI-Foundry-ITSM"
+  ManagedBy   = "Terraform"
+  CreatedAt   = "20260205150554"
+}
+

@@ -300,8 +300,18 @@ function Destroy-Resources {
         return $false
     }
     
+    Write-Info "Generating destruction plan..."
+    Write-Host ""
+    terraform plan -destroy
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to generate destruction plan" -ForegroundColor Red
+        return $false
+    }
+    
+    Write-Host ""
     Write-Info "Destroying infrastructure..."
-    terraform destroy -auto-approve
+    terraform destroy -auto-approve -verbose
     
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Resources destroyed successfully"

@@ -166,6 +166,19 @@ variable "container_registry_sku" {
   default     = "Basic"
 }
 
+# APIM Named Value Variables (for Key Vault secret reference)
+variable "key_vault_secret_identifier" {
+  description = "Key Vault secret identifier URI for halo-api-key (only set after secret is pushed)"
+  type        = string
+  default     = null
+}
+
+variable "identity_client_id" {
+  description = "Client ID of the managed identity for accessing Key Vault secrets in APIM (only set after secret is pushed)"
+  type        = string
+  default     = null
+}
+
 # Tagging
 variable "tags" {
   description = "Common tags for all resources"

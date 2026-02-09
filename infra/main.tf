@@ -71,6 +71,11 @@ module "apim" {
   publisher_email        = var.apim_publisher_email
   apim_sku               = var.apim_sku
   apim_sku_capacity      = var.apim_sku_capacity
+  managed_identity_id    = module.identity.id
+  # Key Vault secret and identity for named value - only create if available
+  # After pushing secret via PowerShell, run: terraform apply -var="key_vault_secret_identifier=<uri>" -var="identity_client_id=<client-id>"
+  key_vault_secret_identifier = var.key_vault_secret_identifier
+  identity_client_id          = var.identity_client_id
   tags                   = local.common_tags
 }
 

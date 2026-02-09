@@ -13,7 +13,11 @@ param (
     [string]$Location = "eastus2",
     
     [Parameter(Mandatory=$false)]
-    [string]$Environment = "dev"
+    [string]$Environment = "dev",
+    
+    [Parameter(Mandatory=$false)]
+    [string]$HaloApiKey
+    
 )
 
 Set-StrictMode -Version Latest
@@ -48,12 +52,23 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Skip summary if only running specific actions
+# Skip APIM configuration if only running specific actions
 if ($Action -eq "output" -or $Action -eq "fmt" -or $Action -eq "clean") {
     exit 0
 }
 
-$infraDeployed = $true
+# PHASE 2: Deploy APIM Configuration
+Write-Host "`n=== PHASE 2: APIM Configuration ==="  -ForegroundColor Magenta
+
+& "$PSScriptRoot\scripts\Deploy-APIM-Configuration.ps1" `
+    -Subscription $Subscription `
+    -HaloApiKey $HaloApiKey `
+    -Environment $Environment
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "APIM configuration failed" -ForegroundColor Red
+    exit 1
+}
     
 
 # Deployment Summary
@@ -67,14 +82,17 @@ Write-Host @"
 Write-Success "Azure Infrastructure deployed (AI Foundry, AI Search, API Management, Storage)"
 Write-Success "Terraform configuration applied successfully"
 Write-Success "All Azure resources provisioned"
+Write-Success "APIs, operations, policies, and tags configured via Terraform"
+Write-Warning "APIM named value will be created after running the terraform apply command shown above"
 
-Write-Host "`n=== Service Endpoints ===" -ForegroundColor Cyan
-Write-Host "Use 'terraform output' in the infra/ directory to view resource details" -ForegroundColor Gray
+Write-Host "`n=== Next Steps ===" -ForegroundColor Cyan
+Write-Host "1. Use 'terraform output' in the infra/ directory to view resource details" -ForegroundColor Gray
+Write-Host "2. Run the terraform apply command with Key Vault secret parameters (shown in deployment output)" -ForegroundColor Gray
 
 Write-Host @"
 
 ============================================================
-              Deployment Complete!
+           Deployment Complete!
 ============================================================
 
 "@ -ForegroundColor Green

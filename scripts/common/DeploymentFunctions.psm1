@@ -241,6 +241,34 @@ function New-FederatedIdentityCredential {
     }
 }
 
+function Set-KeyVaultSecret {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$KeyVaultName,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$SecretName,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$SecretValue
+    )
+    
+    Write-Title "Adding Secret to Key Vault: $SecretName"
+    
+    try {
+        az keyvault secret set `
+            --vault-name $KeyVaultName `
+            --name $SecretName `
+            --value $SecretValue | Out-Null
+        
+        Write-Success "Secret '$SecretName' added to Key Vault '$KeyVaultName'"
+        return $true
+    } catch {
+        Write-Error "Failed to set secret: $_"
+        return $false
+    }
+}
+
 Export-ModuleMember -Function @(
     'Write-Title',
     'Write-Success',
@@ -250,5 +278,6 @@ Export-ModuleMember -Function @(
     'New-SecurePassword',
     'Invoke-HelmWithRetry',
     'Get-ServiceExternalIP',
-    'New-FederatedIdentityCredential'
+    'New-FederatedIdentityCredential',
+    'Set-KeyVaultSecret'
 )

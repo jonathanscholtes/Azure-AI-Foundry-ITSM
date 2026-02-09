@@ -42,6 +42,11 @@ output "key_vault_uri" {
   value       = module.key_vault.vault_uri
 }
 
+output "key_vault_name" {
+  description = "Name of the Key Vault"
+  value       = module.key_vault.name
+}
+
 # Search Service Outputs
 output "search_service_id" {
   description = "ID of the AI Search service"
@@ -124,6 +129,11 @@ output "managed_identity_id" {
 output "managed_identity_principal_id" {
   description = "Principal ID of the user-assigned managed identity"
   value       = module.identity.principal_id
+}
+
+output "managed_identity_client_id" {
+  description = "Client ID of the user-assigned managed identity"
+  value       = module.identity.client_id
 }
 
 # Monitoring Outputs

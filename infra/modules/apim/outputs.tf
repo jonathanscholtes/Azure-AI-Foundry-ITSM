@@ -22,3 +22,18 @@ output "portal_url" {
   description = "Portal URL of the API Management service"
   value       = azurerm_api_management.main.portal_url
 }
+
+output "halo_mcp_api_id" {
+  description = "ID of the Halo MCP API"
+  value       = azapi_resource.halo_mcp.id
+}
+
+output "halo_http_api_id" {
+  description = "ID of the Halo HTTP API"
+  value       = azurerm_api_management_api.halo_http.id
+}
+
+output "kb_tag_id" {
+  description = "ID of the KB tag"
+  value       = azurerm_api_management_tag.kb.id
+}

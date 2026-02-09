@@ -2,11 +2,11 @@
 location        = "eastus2"
 environment     = "dev"
 project_name    = "aifoundry"
-resource_token  = "q4ow3p5e"
-resource_group_name = "rg-aifoundry-dev-q4ow3p5e"
+resource_token  = "ewxyl469"
+resource_group_name = "rg-aifoundry-dev-ewxyl469"
 
 # Search Service
-search_service_name = "aisearch-q4ow3p5e"
+search_service_name = "aisearch-ewxyl469"
 search_sku          = "free"
 
 # API Management
@@ -16,15 +16,15 @@ apim_sku             = "Developer"
 apim_sku_capacity    = 1
 
 # Storage
-storage_account_name = "stgq4ow3p5e"
-container_registry_name = "acrq4ow3p5e"
-key_vault_name = "kv-q4ow3p5e"
+storage_account_name = "stgewxyl469"
+container_registry_name = "acrewxyl469"
+key_vault_name = "kv-ewxyl469"
 
 # Tags
 tags = {
   Environment = "dev"
   Project     = "AI-Foundry-ITSM"
   ManagedBy   = "Terraform"
-  CreatedAt   = "20260205150554"
+  CreatedAt   = "20260209090857"
 }
 

@@ -32,3 +32,4 @@ override.tf.json
 # OS
 Thumbs.db
 
+infra/terraform.tfvars

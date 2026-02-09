@@ -466,15 +466,32 @@ switch ($Action.ToLower()) {
         
         Write-Warning "This will create/modify Azure resources"
         Write-Host "Applying infrastructure changes..." -ForegroundColor Cyan
-        Write-Host "This may take 10-15 minutes..." -ForegroundColor Cyan
+        Write-Host "This may take 15-30 minutes (APIM deployment is slow)..." -ForegroundColor Cyan
         
-        terraform apply tfplan
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Deployment failed"
-            exit 1
+        $maxRetries = 3
+        $retryCount = 0
+        $applySuccess = $false
+        
+        while ($retryCount -lt $maxRetries -and -not $applySuccess) {
+            $retryCount++
+            Write-Host ""
+            Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
+            
+            terraform apply tfplan
+            if ($LASTEXITCODE -eq 0) {
+                $applySuccess = $true
+                Write-Success "Deployment applied successfully"
+                terraform output
+            } else {
+                if ($retryCount -lt $maxRetries) {
+                    Write-Host "Deployment attempt $retryCount failed. Waiting 30 seconds before retry..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 30
+                } else {
+                    Write-Error "Deployment failed after $maxRetries attempts"
+                    exit 1
+                }
+            }
         }
-        Write-Success "Deployment applied successfully"
-        terraform output
     }
     "all" {
         Write-Title "Full Terraform Deployment"
@@ -494,17 +511,34 @@ switch ($Action.ToLower()) {
         terraform plan -out=tfplan
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        # Apply
+        # Apply with retries
         Write-Warning "Step 4/4: Applying infrastructure changes..."
-        Write-Host "This may take 10-15 minutes..." -ForegroundColor Cyan
-        terraform apply tfplan
-        if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Deployment failed"
-            exit 1 
-        }
+        Write-Host "This may take 15-30 minutes (APIM deployment is slow)..." -ForegroundColor Cyan
         
-        Write-Success "Full deployment completed successfully"
-        terraform output
+        $maxRetries = 3
+        $retryCount = 0
+        $applySuccess = $false
+        
+        while ($retryCount -lt $maxRetries -and -not $applySuccess) {
+            $retryCount++
+            Write-Host ""
+            Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
+            
+            terraform apply tfplan
+            if ($LASTEXITCODE -eq 0) {
+                $applySuccess = $true
+                Write-Success "Full deployment completed successfully"
+                terraform output
+            } else {
+                if ($retryCount -lt $maxRetries) {
+                    Write-Host "Deployment attempt $retryCount failed. Waiting 30 seconds before retry..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 30
+                } else {
+                    Write-Error "Deployment failed after $maxRetries attempts"
+                    exit 1
+                }
+            }
+        }
     }
     "output" {
         Write-Title "Deployment Outputs"

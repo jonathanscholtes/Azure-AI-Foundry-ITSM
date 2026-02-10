@@ -30,7 +30,7 @@ output "halo_mcp_api_id" {
 
 output "halo_http_api_id" {
   description = "ID of the Halo HTTP API"
-  value       = azurerm_api_management_api.halo_http.id
+  value       = length(azurerm_api_management_api.halo_http) > 0 ? azurerm_api_management_api.halo_http[0].id : null
 }
 
 output "kb_tag_id" {

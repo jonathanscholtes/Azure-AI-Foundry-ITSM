@@ -101,3 +101,43 @@ module "ai_services" {
   gpt4o_capacity         = var.ai_services_deployment_gpt4o_capacity
   embedding_capacity     = var.ai_services_deployment_embedding_capacity
 }
+
+# App Service Plan Module
+module "apps" {
+  source = "./modules/app"
+
+  project_name        = var.project_name
+  environment_name    = var.environment_name
+  resource_token      = local.resource_token
+  location            = var.location
+  resource_group_name = azurerm_resource_group.main.name
+}
+
+# Application Module (Web Apps and Function Apps) - Optional
+module "applications" {
+  count  = var.deploy_applications ? 1 : 0
+  source = "./modules/applications"
+
+  project_name               = var.project_name
+  environment_name           = var.environment_name
+  resource_token             = local.resource_token
+  location                   = var.location
+  resource_group_name        = azurerm_resource_group.main.name
+  managed_identity_id        = module.security.managed_identity_id
+  log_analytics_workspace_name = module.monitor.log_analytics_workspace_name
+  app_insights_name          = module.monitor.application_insights_name
+  app_service_plan_name      = module.apps.app_service_plan_name
+  key_vault_uri              = module.security.key_vault_uri
+  openai_endpoint            = var.openai_endpoint != "" ? var.openai_endpoint : module.ai.openai_endpoint
+  storage_account_name       = module.data.storage_account_name
+  ai_account_endpoint        = module.ai.ai_account_endpoint
+  cosmosdb_endpoint          = module.data.cosmosdb_endpoint
+
+  depends_on = [
+    module.apps,
+    module.monitor,
+    module.security,
+    module.data,
+    module.ai
+  ]
+}

@@ -26,6 +26,17 @@ override.tf.json
 *.pem
 *.key
 
+#Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+.venv
+venv
+env/
+
+
 # Logs
 *.log
 
@@ -33,3 +44,4 @@ override.tf.json
 Thumbs.db
 
 infra/terraform.tfvars
+workshop.md

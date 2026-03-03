@@ -121,7 +121,7 @@ resource "azurerm_api_management_api_operation" "knowledgebase_by_id" {
   api_name            = azurerm_api_management_api.halo_http[0].name
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
-  display_name        = "knowledgebase by id"
+  display_name        = "knowledgebasebyid"
   method              = "GET"
   url_template        = "/KBArticle/{id}"
 

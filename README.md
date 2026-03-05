@@ -1,8 +1,8 @@
-# 🤖 Azure AI Foundry ITSM
+# 🤖 Microsoft Foundry ITSM
 
 **An Agentic Service Desk Powered by Microsoft Foundry, APIM MCP, and Halo ITSM**
 
-Azure AI Foundry ITSM deploys a complete, production-oriented infrastructure on Azure that connects a Microsoft Foundry AI agent to a Halo ITSM knowledge base through API Management acting as a Model Context Protocol (MCP) server — enabling intelligent, grounded IT support responses.
+Microsoft Foundry ITSM deploys a complete, production-oriented infrastructure on Azure that connects a Microsoft Foundry AI agent to a Halo ITSM knowledge base through API Management acting as a Model Context Protocol (MCP) server — enabling intelligent, grounded IT support responses.
 
 > **Flow:** User → Microsoft Foundry Agent → APIM (MCP Server) → Halo ITSM API → Knowledge Base Articles
 
@@ -16,7 +16,7 @@ This project provisions all Azure infrastructure via Terraform and configures an
 - Microsoft Foundry Agent (`ServiceDeskAssistant`) grounded exclusively on Halo ITSM knowledge base data
 - Azure API Management exposing Halo ITSM APIs as an MCP server for Foundry tool integration
 - Azure AI Search for LLM RAG patterns
-- GPT-4o and text-embedding-ada-002 model deployments via Azure AI Services
+- GPT-4.1 and text-embedding-ada-002 model deployments via Azure AI Services
 - Managed Identity used throughout — no credentials committed to source control
 - Full infrastructure-as-code via Terraform with modular structure
 - Automated two-phase deployment via PowerShell orchestrator
@@ -25,14 +25,17 @@ This project provisions all Azure infrastructure via Terraform and configures an
 
 ## 📐 Architecture
 
+![design](media/design.png)
+
+
 ### Core Components
 
 | Component | Technology | Role |
 |---|---|---|
-| **Foundry Agent** | Microsoft Foundry, GPT-4o | AI service desk assistant grounded on ITSM data |
+| **Foundry Agent** | Microsoft Foundry, GPT-4.1 | AI service desk assistant grounded on ITSM data |
 | **API Management** | Azure APIM | Exposes Halo ITSM API as an MCP server for Foundry |
 | **Azure AI Search** | Azure Cognitive Search | Vector/keyword search for RAG |
-| **Azure AI Services** | Azure OpenAI | GPT-4o inference + text-embedding-ada-002 |
+| **Azure AI Services** | Azure OpenAI | GPT-4.1 inference + text-embedding-ada-002 |
 | **Key Vault** | Azure Key Vault | Secrets and API key management |
 | **Managed Identity** | Azure User-Assigned MI | Secretless auth across all services |
 | **Storage Account** | Azure Blob Storage | Data and artifact storage |
@@ -50,7 +53,11 @@ This project provisions all Azure infrastructure via Terraform and configures an
 Azure-AI-Foundry-ITSM/
 ├── deploy.ps1                          # Full end-to-end deployment orchestrator
 ├── README.md                           # This file
-├── workshop.md                         # 4-hour workshop agenda and guide
+│
+├── docs/
+│   ├── Deployment_Steps.md             # Step-by-step deployment and configuration guide
+│   ├── workshop.md                     # 4-hour workshop agenda and guide
+│   └── prompt_examples.md             # Sample prompts for testing the agent
 │
 ├── infra/                              # Infrastructure as Code (Terraform)
 │   ├── main.tf                         # Root module — wires all child modules
@@ -96,8 +103,8 @@ Azure-AI-Foundry-ITSM/
 | Azure CLI | Latest | [Install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) · `az login` authenticated |
 | PowerShell | 7+ | **Windows:** Built-in or `winget install Microsoft.PowerShell` · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
 | Python | 3.10+ | Required for the notebook demo |
-| Azure subscription | — | Sufficient quota for OpenAI, APIM, AI Search |
-| Halo ITSM API Key | — | Required for APIM to proxy Halo ITSM knowledge base |
+| Azure subscription | — | Sufficient quota for OpenAI, APIM, AI Search. **Owner or Contributor + User Access Administrator** role required. |
+| Halo ITSM API Key | — | Register an application in Halo (**Configuration → Integrations → Halo API → Authorise a new application**, auth method: `API Key`). See [Deployment_Steps.md](docs/deployment_Steps.md#halo-itsm) for full steps. |
 
 ### 1. Clone the Repository
 
@@ -106,16 +113,12 @@ git clone https://github.com/jonathanscholtes/Azure-AI-Foundry-ITSM.git
 cd Azure-AI-Foundry-ITSM
 ```
 
-### 2. Configure Variables
-
-> **Note:** The `deploy.ps1` script auto-generates `infra/terraform.tfvars` from the template. You only need to provide parameters to the deploy command. If you prefer manual control, copy `infra/terraform.tfvars.tpl` to `infra/terraform.tfvars` and edit accordingly.
+### 2. Deploy Everything (Single Command)
 
 To find your subscription ID:
 ```powershell
 az account list --output table
 ```
-
-### 3. Deploy Everything (Single Command)
 
 **Windows (PowerShell 7+):**
 ```powershell
@@ -126,7 +129,8 @@ az account set --subscription "YOUR-SUBSCRIPTION-ID"
     -Subscription "YOUR-SUBSCRIPTION-ID" `
     -Location "eastus2" `
     -Environment "dev" `
-    -HaloApiKey "YOUR-HALO-API-KEY"
+    -HaloApiKey "YOUR-HALO-API-KEY" `
+    -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
 ```
 
 **Linux / macOS (PowerShell 7+):**
@@ -138,22 +142,23 @@ pwsh ./deploy.ps1 `
     -Subscription "YOUR-SUBSCRIPTION-ID" `
     -Location "eastus2" `
     -Environment "dev" `
-    -HaloApiKey "YOUR-HALO-API-KEY"
+    -HaloApiKey "YOUR-HALO-API-KEY" `
+    -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
 ```
 
-> **Important:** Before deploying, update the `halo_base_url` in `infra/terraform.tfvars.tpl` (or the generated `terraform.tfvars`) to point to your Halo ITSM instance (e.g., `https://yourinstance.haloitsm.com/api`).
+> **Estimated time:** 15–40 minutes. API Management provisioning is the slowest resource.
 
 **The deployment runs two phases automatically:**
 
 | Phase | Script | What it does |
 |---|---|---|
 | 1 — Infrastructure | `Deploy-Infrastructure.ps1` | Provisions all Azure resources via Terraform |
-| 2 — APIM Configuration | `Deploy-APIM-Configuration.ps1` | Configures Halo ITSM API as an MCP server in APIM |
+| 2 — APIM Configuration | `Deploy-APIM-Configuration.ps1` | Stores Halo API key in Key Vault |
 
-**Resources created (~10–15 min):**
+**Resources created (~15–40 min):**
 
 - Resource Group
-- Azure AI Services (GPT-4o + text-embedding-ada-002 deployments)
+- Azure AI Services (GPT-4.1 + text-embedding-ada-002 deployments)
 - Azure AI Search
 - API Management (with Halo ITSM MCP server)
 - Storage Account
@@ -175,14 +180,12 @@ pwsh ./deploy.ps1 `
 |---|---|---|
 | `subscription_id` | — | Azure subscription ID (required) |
 | `resource_group_name` | `rg-ai-foundry-itsm` | Resource group name |
-| `location` | `eastus` | Azure region |
+| `location` | `eastus2` | Azure region |
 | `environment` | `dev` | Environment designation (dev, staging, prod) |
 | `project_name` | `aifoundry` | Project identifier used in resource naming |
-| `ai_hub_name` | `aihub-foundry` | AI Foundry Hub name |
-| `ai_project_name` | `aiproject-foundry` | AI Foundry Project name |
 | `managed_identity_name` | `id-ai-foundry-main` | User-assigned managed identity name |
 | `search_service_name` | `aisearch-foundry` | Azure AI Search service name |
-| `ai_services_deployment_gpt4o_capacity` | `150` | GPT-4o deployment capacity (PTUs) |
+| `ai_services_deployment_gpt41_capacity` | `150` | GPT-4.1 deployment capacity (PTUs) |
 | `ai_services_deployment_embedding_capacity` | `120` | text-embedding-ada-002 capacity (PTUs) |
 | `halo_base_url` | — | Base URL of your Halo ITSM API (e.g., `https://yourinstance.haloitsm.com/api`) |
 
@@ -211,43 +214,16 @@ terraform output
 
 ## 🔌 Post-Deployment: Configure APIM & Foundry
 
-> Full step-by-step instructions are available in [Deployment_Steps.md](Deployment_Steps.md).
+After `deploy.ps1` completes, four manual steps are required in the Azure Portal and Microsoft Foundry portal. Full instructions with exact field values are in **[Deployment_Steps.md](docs/deployment_Steps.md)**.
 
-### 1. Expose Halo ITSM API as an MCP Server
+| Step | Where | What |
+|---|---|---|
+| **1. Create MCP Server** | Azure Portal → APIM → MCP Servers | Wrap the Halo ITSM API as an MCP server and copy the endpoint URL |
+| **2. Register MCP Tool** | [ai.azure.com](https://ai.azure.com/) → Build → Tools | Connect the APIM MCP endpoint as a custom tool named `Halo-ITSM-MCP` |
+| **3. Create Agent** | [ai.azure.com](https://ai.azure.com/) → Build → Agents | Create `ServiceDeskAssistant` with GPT-4.1, attach `Halo-ITSM-MCP`, add system prompt |
+| **4. Notebook (optional)** | `Notebooks/.env` + `.ipynb` | Copy `.env.sample` → `.env`, fill in values from `terraform output`, run cells |
 
-In the Azure Portal, navigate to your API Management instance:
-
-> **APIM → APIs → MCP Servers → Create → Expose an API as an MCP server**
-
-| Field | Value |
-|---|---|
-| Name | `Halo ITSM MCP` |
-| Tools | `KBArticle` and `KBArticle/{id}` |
-| Description | Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows. |
-
-### 2. Register the MCP Tool in Microsoft Foundry
-
-In [ai.azure.com](https://ai.azure.com/), open your Foundry project and go to **Build → Tools → Connect a Tool → Custom → Model Context Protocol (MCP) → Create**:
-
-| Field | Value |
-|---|---|
-| Name | `Halo-ITSM-MCP` |
-| Remote MCP Server endpoint | APIM MCP server URL |
-| Authentication | Match APIM subscription key configuration |
-
-### 3. Create the Foundry Agent
-
-Go to **Build → Agents → Create → From scratch** and configure:
-
-| Field | Value |
-|---|---|
-| Name | `ServiceDeskAssistant` |
-| Model | `gpt-4o` |
-| Tools | `Halo-ITSM-MCP` |
-
-**System prompt (recommended):**
-
-> You are ServiceDeskAssistant, an intelligent IT service desk support agent. You MUST ONLY use the provided Halo-ITSM-MCP tools to search and retrieve information from the knowledge base. Do NOT rely on training data or general knowledge. If information is not found after searching, respond with: "Unable to find in knowledge base". Always show the **article id** and output the FULL article text exactly as returned by the tool — do not summarize or paraphrase.
+> 📋 **[View the complete step-by-step guide → Deployment_Steps.md](docs/deployment_Steps.md)**
 
 ---
 
@@ -255,12 +231,17 @@ Go to **Build → Agents → Create → From scratch** and configure:
 
 After completing testing or when no longer needed, destroy all Azure resources to avoid additional charges:
 
+**Windows:**
 ```powershell
 .\deploy.ps1 -Action destroy -Subscription "YOUR-SUBSCRIPTION-ID"
 ```
 
-Or manually:
+**Linux / macOS:**
+```powershell
+pwsh ./deploy.ps1 -Action destroy -Subscription "YOUR-SUBSCRIPTION-ID"
+```
 
+Or manually:
 ```powershell
 cd infra
 terraform destroy

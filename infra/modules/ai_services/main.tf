@@ -45,21 +45,21 @@ resource "azapi_resource" "ai_account" {
   depends_on = []
 }
 
-resource "azapi_resource" "gpt4o_deployment" {
+resource "azapi_resource" "gpt41_deployment" {
   type      = "Microsoft.CognitiveServices/accounts/deployments@2025-06-01"
-  name      = "gpt-4o"
+  name      = "gpt-4.1"
   parent_id = azapi_resource.ai_account.id
 
   body = {
     sku = {
       name     = "Standard"
-      capacity = var.gpt4o_capacity
+      capacity = var.gpt41_capacity
     }
     properties = {
       model = {
         format  = "OpenAI"
-        name    = "gpt-4o"
-        version = "2024-08-06"
+        name    = "gpt-4.1"
+        version = "2025-04-14"
       }
       versionUpgradeOption = "OnceNewDefaultVersionAvailable"
     }
@@ -88,7 +88,7 @@ resource "azapi_resource" "embedding_deployment" {
     }
   }
 
-  depends_on = [azapi_resource.gpt4o_deployment]
+  depends_on = [azapi_resource.gpt41_deployment]
 }
 
 resource "azapi_resource" "ai_project" {
@@ -107,7 +107,7 @@ resource "azapi_resource" "ai_project" {
 
   depends_on = [
     azapi_resource.ai_account,
-    azapi_resource.gpt4o_deployment,
+    azapi_resource.gpt41_deployment,
     azapi_resource.embedding_deployment
   ]
 }

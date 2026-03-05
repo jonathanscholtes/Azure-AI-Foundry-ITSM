@@ -102,7 +102,7 @@ module "ai_services" {
   subscription_id        = module.resource_group.subscription_id
   identity_id            = module.identity.id
   identity_principal_id  = module.identity.principal_id
-  gpt4o_capacity         = var.ai_services_deployment_gpt4o_capacity
+  gpt41_capacity         = var.ai_services_deployment_gpt41_capacity
   embedding_capacity     = var.ai_services_deployment_embedding_capacity
 }
 
@@ -119,7 +119,7 @@ resource "azurerm_role_assignment" "current_user_ai_developer" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
-# Cognitive Services OpenAI User — invoke models (GPT-4o, embeddings)
+# Cognitive Services OpenAI User — invoke models (GPT-4.1, embeddings)
 resource "azurerm_role_assignment" "current_user_openai_user" {
   scope                = module.ai_services.ai_account_id
   role_definition_name = "Cognitive Services OpenAI User"

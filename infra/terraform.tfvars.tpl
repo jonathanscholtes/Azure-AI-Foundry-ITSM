@@ -16,7 +16,7 @@ apim_sku             = "Developer"
 apim_sku_capacity    = 1
 
 # Halo ITSM
-halo_base_url        = "https://YOURINSTANCE.haloitsm.com/api"
+halo_base_url        = "${HaloBaseUrl}"
 
 # Storage
 storage_account_name = "stg${ResourceToken}"

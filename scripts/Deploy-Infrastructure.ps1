@@ -13,7 +13,10 @@ param (
     [string]$Location = "eastus2",
     
     [Parameter(Mandatory=$false)]
-    [string]$Environment = "dev"
+    [string]$Environment = "dev",
+
+    [Parameter(Mandatory=$false)]
+    [string]$HaloBaseUrl
 )
 
 Set-StrictMode -Version Latest
@@ -76,6 +79,7 @@ function New-TerraformVarsFile {
         [string]$SubscriptionId,
         [string]$Location,
         [string]$Environment,
+        [string]$HaloBaseUrl,
         [string]$OutputPath = "."
     )
     
@@ -111,6 +115,7 @@ function New-TerraformVarsFile {
         $content = $content -replace '\$\{Environment\}', $Environment
         $content = $content -replace '\$\{ResourceToken\}', $resourceToken
         $content = $content -replace '\$\{Timestamp\}', $timestamp
+        $content = $content -replace '\$\{HaloBaseUrl\}', $HaloBaseUrl
         
         $tfvarsPath = Join-Path -Path $absolutePath -ChildPath "terraform.tfvars"
         Set-Content -Path $tfvarsPath -Value $content -Encoding UTF8 -Force -ErrorAction Stop
@@ -358,7 +363,7 @@ function Clean-State {
 }
 
 # Main execution
-Write-Title "Azure AI Foundry ITSM - Infrastructure Deployment"
+Write-Title "Microsoft Foundry ITSM - Infrastructure Deployment"
 
 # Check prerequisites
 Write-Info "Checking prerequisites..."
@@ -417,7 +422,7 @@ Set-Location -Path $infraDir
 # Generate terraform.tfvars now that we're in the infra directory
 if ($Action -in @("init", "plan", "apply", "all", "validate")) {
     Write-Info "Generating terraform.tfvars..."
-    if (-not (New-TerraformVarsFile -SubscriptionId $subscriptionId -Location $Location -Environment $Environment -OutputPath ".")) {
+    if (-not (New-TerraformVarsFile -SubscriptionId $subscriptionId -Location $Location -Environment $Environment -HaloBaseUrl $HaloBaseUrl -OutputPath ".")) {
         Write-Error "Failed to generate terraform.tfvars"
         exit 1
     }

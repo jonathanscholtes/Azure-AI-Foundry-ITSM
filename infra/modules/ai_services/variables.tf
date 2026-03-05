@@ -33,8 +33,8 @@ variable "identity_principal_id" {
   type        = string
 }
 
-variable "gpt4o_capacity" {
-  description = "Capacity for GPT-4o deployment"
+variable "gpt41_capacity" {
+  description = "Capacity for GPT-4.1 deployment"
   type        = number
   default     = 150
 }

@@ -1,4 +1,4 @@
-# Common deployment functions for Azure AI Foundry ITSM
+# Common deployment functions for Microsoft Foundry ITSM
 # This module contains shared utilities used across deployment scripts
 
 # Helper functions for formatted output

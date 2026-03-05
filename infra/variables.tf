@@ -33,19 +33,6 @@ variable "project_name" {
   default     = "aifoundry"
 }
 
-# AI Foundry Variables
-variable "ai_hub_name" {
-  description = "Name of the AI Hub"
-  type        = string
-  default     = "aihub-foundry"
-}
-
-variable "ai_project_name" {
-  description = "Name of the AI Project"
-  type        = string
-  default     = "aiproject-foundry"
-}
-
 # Managed Identity Variables
 variable "managed_identity_name" {
   description = "Name of the user-assigned managed identity for all services"
@@ -61,8 +48,8 @@ variable "app_insights_name" {
 }
 
 # AI Services Variables
-variable "ai_services_deployment_gpt4o_capacity" {
-  description = "Capacity for GPT-4o deployment"
+variable "ai_services_deployment_gpt41_capacity" {
+  description = "Capacity for GPT-4.1 deployment"
   type        = number
   default     = 150
 }
@@ -95,7 +82,7 @@ variable "search_sku" {
 variable "apim_publisher_name" {
   description = "Publisher name for API Management"
   type        = string
-  default     = "AI Foundry ITSM"
+  default     = "Microsoft Foundry ITSM"
 }
 
 variable "apim_publisher_email" {
@@ -107,6 +94,11 @@ variable "apim_publisher_email" {
 variable "halo_base_url" {
   description = "Base URL of the Halo ITSM API (e.g., https://yourinstance.haloitsm.com/api)"
   type        = string
+
+  validation {
+    condition     = can(regex("^https://", var.halo_base_url))
+    error_message = "halo_base_url must start with 'https://' and point to your Halo ITSM API endpoint."
+  }
 }
 
 variable "apim_sku" {
@@ -190,7 +182,7 @@ variable "tags" {
   type        = map(string)
   default = {
     Environment = "dev"
-    Project     = "AI-Foundry-ITSM"
+    Project     = "Microsoft-Foundry-ITSM"
     ManagedBy   = "Terraform"
   }
 }

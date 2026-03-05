@@ -1,4 +1,4 @@
-# Agentic Service Help Desk  - Main Deployment Orchestrator
+# Microsoft Foundry ITSM - Main Deployment Orchestrator
 # This script coordinates the full end-to-end deployment
 
 param (
@@ -16,9 +16,19 @@ param (
     [string]$Environment = "dev",
     
     [Parameter(Mandatory=$false)]
-    [string]$HaloApiKey
-    
+    [string]$HaloApiKey,
+
+    [Parameter(Mandatory=$false)]
+    [string]$HaloBaseUrl
 )
+
+# Actions that modify or create infrastructure and require HaloBaseUrl for tfvars generation
+$infraActions = @("init", "validate", "plan", "apply", "all")
+
+if ($Action -in $infraActions -and -not $HaloBaseUrl) {
+    Write-Error "'-HaloBaseUrl' is required for action '$Action'. Example: -HaloBaseUrl 'https://yourinstance.haloitsm.com/api'"
+    exit 1
+}
 
 Set-StrictMode -Version Latest
 Set-Variable -Name ErrorActionPreference -Value 'Stop'
@@ -45,31 +55,37 @@ Write-Host "`n=== PHASE 1: Infrastructure Deployment ===" -ForegroundColor Magen
     -Action $Action `
     -Subscription $Subscription `
     -Location $Location `
-    -Environment $Environment
+    -Environment $Environment `
+    -HaloBaseUrl $HaloBaseUrl
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Infrastructure deployment failed" -ForegroundColor Red
     exit 1
 }
 
-# Skip APIM configuration if only running specific actions
-if ($Action -eq "output" -or $Action -eq "fmt" -or $Action -eq "clean") {
+# Skip APIM configuration for non-apply actions or if no Halo API key was provided
+$apimSkipActions = @("output", "fmt", "clean", "destroy", "init", "validate", "plan")
+if ($Action -in $apimSkipActions) {
     exit 0
 }
 
-# PHASE 2: Deploy APIM Configuration
-Write-Host "`n=== PHASE 2: APIM Configuration ==="  -ForegroundColor Magenta
+if (-not $HaloApiKey) {
+    Write-Host "`n[Warning] -HaloApiKey not provided — skipping APIM Key Vault configuration." -ForegroundColor Yellow
+    Write-Host "           Re-run with -HaloApiKey if you need to store or update the Halo API key.`n" -ForegroundColor Yellow
+} else {
+    # PHASE 2: Deploy APIM Configuration
+    Write-Host "`n=== PHASE 2: APIM Configuration ==="  -ForegroundColor Magenta
 
-& "$PSScriptRoot/scripts/Deploy-APIM-Configuration.ps1" `
-    -Subscription $Subscription `
-    -HaloApiKey $HaloApiKey `
-    -Environment $Environment
+    & "$PSScriptRoot/scripts/Deploy-APIM-Configuration.ps1" `
+        -Subscription $Subscription `
+        -HaloApiKey $HaloApiKey `
+        -Environment $Environment
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "APIM configuration failed" -ForegroundColor Red
-    exit 1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "APIM configuration failed" -ForegroundColor Red
+        exit 1
+    }
 }
-    
 
 # Deployment Summary
 Write-Host @"
@@ -79,17 +95,19 @@ Write-Host @"
 ============================================================
 
 "@ -ForegroundColor Cyan
-Write-Success "Azure Infrastructure deployed (AI Foundry, AI Search, API Management, Storage)"
+Write-Success "All Azure resources provisioned (AI Services, AI Search, APIM, Storage, Key Vault)"
 Write-Success "Terraform configuration applied successfully"
-Write-Success "All Azure resources provisioned"
-Write-Success "Halo API Key stored in Key Vault"
+if ($HaloApiKey) {
+    Write-Success "Halo API Key stored in Key Vault"
+} else {
+    Write-Host "  [Skipped] Halo API Key not provided — APIM Key Vault configuration skipped" -ForegroundColor Yellow
+}
 
 Write-Host "`n=== Next Steps ===" -ForegroundColor Cyan
-Write-Host "1. Run 'cd infra; terraform output' to view resource endpoints" -ForegroundColor Gray
-Write-Host "2. If the Halo API key was provided, run the terraform apply with Key Vault parameters (shown in Phase 2 output)" -ForegroundColor Gray
-Write-Host "3. Configure the MCP server in APIM (see Deployment_Steps.md)" -ForegroundColor Gray
-Write-Host "4. Register the MCP tool and create the agent in Microsoft Foundry (see Deployment_Steps.md)" -ForegroundColor Gray
-Write-Host "5. Copy Notebooks/.env.sample to Notebooks/.env and fill in your values" -ForegroundColor Gray
+Write-Host "1. Run 'cd infra && terraform output' to view resource endpoints" -ForegroundColor Gray
+Write-Host "2. Create the MCP server in APIM (see docs/deployment_Steps.md — Step 4)" -ForegroundColor Gray
+Write-Host "3. Register the MCP tool and create the agent in Microsoft Foundry (see docs/deployment_Steps.md — Steps 5 & 6)" -ForegroundColor Gray
+Write-Host "4. Copy Notebooks/.env.sample to Notebooks/.env and fill in values from terraform output" -ForegroundColor Gray
 
 Write-Host @"
 

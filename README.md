@@ -25,8 +25,6 @@ This project provisions all Azure infrastructure via Terraform and configures an
 
 ## 📐 Architecture
 
-
-
 ### Core Components
 
 | Component | Technology | Role |
@@ -52,6 +50,7 @@ This project provisions all Azure infrastructure via Terraform and configures an
 Azure-AI-Foundry-ITSM/
 ├── deploy.ps1                          # Full end-to-end deployment orchestrator
 ├── README.md                           # This file
+├── workshop.md                         # 4-hour workshop agenda and guide
 │
 ├── infra/                              # Infrastructure as Code (Terraform)
 │   ├── main.tf                         # Root module — wires all child modules
@@ -59,10 +58,10 @@ Azure-AI-Foundry-ITSM/
 │   ├── outputs.tf                      # Output definitions
 │   ├── provider.tf                     # Azure provider configuration
 │   ├── locals.tf                       # Local computed values
-│   ├── terraform.tfvars                # Variable values (customize this)
+│   ├── terraform.tfvars.tpl            # Variable template (auto-populated by deploy.ps1)
 │   └── modules/
 │       ├── ai_services/                # Azure AI Services (OpenAI, Hub, Project)
-│       ├── apim/                       # API Management
+│       ├── apim/                       # API Management + Halo ITSM API
 │       ├── container_registry/         # Azure Container Registry
 │       ├── identity/                   # User-assigned Managed Identity + RBAC
 │       ├── key_vault/                  # Key Vault
@@ -73,11 +72,12 @@ Azure-AI-Foundry-ITSM/
 │
 ├── Notebooks/
 │   ├── 01_azure_ai_agent-mcp.ipynb    # Foundry agent + MCP demo notebook
+│   ├── .env.sample                    # Environment variable template for notebook
 │   └── requirements.txt               # Python dependencies
 │
 └── scripts/
     ├── Deploy-Infrastructure.ps1       # Phase 1: Terraform infrastructure deployment
-    ├── Deploy-APIM-Configuration.ps1  # Phase 2: APIM MCP server configuration
+    ├── Deploy-APIM-Configuration.ps1  # Phase 2: APIM secrets deployment
     └── common/
         └── DeploymentFunctions.psm1   # Shared PowerShell utilities
 ```
@@ -92,10 +92,12 @@ Azure-AI-Foundry-ITSM/
 
 | Tool | Version | Notes |
 |---|---|---|
-| Terraform | >= 1.0 | [Download](https://developer.hashicorp.com/terraform/downloads) or `winget install HashiCorp.Terraform` |
-| Azure CLI | Latest | [Install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-windows) · `az login` authenticated |
-| PowerShell | 7+ | Required for deployment scripts |
+| Terraform | >= 1.5 | **Windows:** `winget install HashiCorp.Terraform` · **macOS:** `brew install hashicorp/tap/terraform` · **Linux:** [Install guide](https://developer.hashicorp.com/terraform/install) |
+| Azure CLI | Latest | [Install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) · `az login` authenticated |
+| PowerShell | 7+ | **Windows:** Built-in or `winget install Microsoft.PowerShell` · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
+| Python | 3.10+ | Required for the notebook demo |
 | Azure subscription | — | Sufficient quota for OpenAI, APIM, AI Search |
+| Halo ITSM API Key | — | Required for APIM to proxy Halo ITSM knowledge base |
 
 ### 1. Clone the Repository
 
@@ -106,13 +108,7 @@ cd Azure-AI-Foundry-ITSM
 
 ### 2. Configure Variables
 
-Edit `infra/terraform.tfvars` and set your values:
-
-```hcl
-subscription_id = "YOUR_SUBSCRIPTION_ID"  # Required
-location        = "eastus2"               # Azure region
-environment     = "dev"                   # dev, staging, or prod
-```
+> **Note:** The `deploy.ps1` script auto-generates `infra/terraform.tfvars` from the template. You only need to provide parameters to the deploy command. If you prefer manual control, copy `infra/terraform.tfvars.tpl` to `infra/terraform.tfvars` and edit accordingly.
 
 To find your subscription ID:
 ```powershell
@@ -121,6 +117,7 @@ az account list --output table
 
 ### 3. Deploy Everything (Single Command)
 
+**Windows (PowerShell 7+):**
 ```powershell
 az login
 az account set --subscription "YOUR-SUBSCRIPTION-ID"
@@ -131,6 +128,20 @@ az account set --subscription "YOUR-SUBSCRIPTION-ID"
     -Environment "dev" `
     -HaloApiKey "YOUR-HALO-API-KEY"
 ```
+
+**Linux / macOS (PowerShell 7+):**
+```powershell
+az login
+az account set --subscription "YOUR-SUBSCRIPTION-ID"
+
+pwsh ./deploy.ps1 `
+    -Subscription "YOUR-SUBSCRIPTION-ID" `
+    -Location "eastus2" `
+    -Environment "dev" `
+    -HaloApiKey "YOUR-HALO-API-KEY"
+```
+
+> **Important:** Before deploying, update the `halo_base_url` in `infra/terraform.tfvars.tpl` (or the generated `terraform.tfvars`) to point to your Halo ITSM instance (e.g., `https://yourinstance.haloitsm.com/api`).
 
 **The deployment runs two phases automatically:**
 
@@ -173,6 +184,7 @@ az account set --subscription "YOUR-SUBSCRIPTION-ID"
 | `search_service_name` | `aisearch-foundry` | Azure AI Search service name |
 | `ai_services_deployment_gpt4o_capacity` | `150` | GPT-4o deployment capacity (PTUs) |
 | `ai_services_deployment_embedding_capacity` | `120` | text-embedding-ada-002 capacity (PTUs) |
+| `halo_base_url` | — | Base URL of your Halo ITSM API (e.g., `https://yourinstance.haloitsm.com/api`) |
 
 ### Key Outputs
 
@@ -258,7 +270,7 @@ terraform destroy
 
 ## 📜 License
 
-This project is licensed under the [MIT License](LICENSE.md).
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 

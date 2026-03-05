@@ -25,7 +25,7 @@ Set-Variable -Name ErrorActionPreference -Value 'Stop'
 
 
 # Import common functions
-Import-Module "$PSScriptRoot\scripts\common\DeploymentFunctions.psm1" -Force
+Import-Module "$PSScriptRoot/scripts/common/DeploymentFunctions.psm1" -Force
 
 Write-Host @"
 
@@ -41,7 +41,7 @@ Initialize-AzureContext -Subscription $Subscription
 # PHASE 1: Deploy Infrastructure
 Write-Host "`n=== PHASE 1: Infrastructure Deployment ===" -ForegroundColor Magenta
 
-& "$PSScriptRoot\scripts\Deploy-Infrastructure.ps1" `
+& "$PSScriptRoot/scripts/Deploy-Infrastructure.ps1" `
     -Action $Action `
     -Subscription $Subscription `
     -Location $Location `
@@ -60,7 +60,7 @@ if ($Action -eq "output" -or $Action -eq "fmt" -or $Action -eq "clean") {
 # PHASE 2: Deploy APIM Configuration
 Write-Host "`n=== PHASE 2: APIM Configuration ==="  -ForegroundColor Magenta
 
-& "$PSScriptRoot\scripts\Deploy-APIM-Configuration.ps1" `
+& "$PSScriptRoot/scripts/Deploy-APIM-Configuration.ps1" `
     -Subscription $Subscription `
     -HaloApiKey $HaloApiKey `
     -Environment $Environment
@@ -82,12 +82,14 @@ Write-Host @"
 Write-Success "Azure Infrastructure deployed (AI Foundry, AI Search, API Management, Storage)"
 Write-Success "Terraform configuration applied successfully"
 Write-Success "All Azure resources provisioned"
-Write-Success "APIs, operations, policies, and tags configured via Terraform"
-Write-Warning "APIM named value will be created after running the terraform apply command shown above"
+Write-Success "Halo API Key stored in Key Vault"
 
 Write-Host "`n=== Next Steps ===" -ForegroundColor Cyan
-Write-Host "1. Use 'terraform output' in the infra/ directory to view resource details" -ForegroundColor Gray
-Write-Host "2. Run the terraform apply command with Key Vault secret parameters (shown in deployment output)" -ForegroundColor Gray
+Write-Host "1. Run 'cd infra; terraform output' to view resource endpoints" -ForegroundColor Gray
+Write-Host "2. If the Halo API key was provided, run the terraform apply with Key Vault parameters (shown in Phase 2 output)" -ForegroundColor Gray
+Write-Host "3. Configure the MCP server in APIM (see Deployment_Steps.md)" -ForegroundColor Gray
+Write-Host "4. Register the MCP tool and create the agent in Microsoft Foundry (see Deployment_Steps.md)" -ForegroundColor Gray
+Write-Host "5. Copy Notebooks/.env.sample to Notebooks/.env and fill in your values" -ForegroundColor Gray
 
 Write-Host @"
 

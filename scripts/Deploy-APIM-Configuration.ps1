@@ -17,13 +17,13 @@ Set-StrictMode -Version Latest
 Set-Variable -Name ErrorActionPreference -Value 'Stop'
 
 # Import common functions
-Import-Module "$PSScriptRoot\common\DeploymentFunctions.psm1" -Force
+Import-Module "$PSScriptRoot/common/DeploymentFunctions.psm1" -Force
 
 function Get-InfraOutputs {
     Write-Info "Retrieving Terraform outputs..."
     
     try {
-        $outputs = & terraform -chdir="$PSScriptRoot\..\infra" output -json 2>$null | ConvertFrom-Json
+        $outputs = & terraform -chdir="$PSScriptRoot/../infra" output -json 2>$null | ConvertFrom-Json
         
         if (-not $outputs) {
             throw "Failed to retrieve Terraform outputs"

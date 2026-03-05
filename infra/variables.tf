@@ -12,7 +12,7 @@ variable "resource_group_name" {
 variable "location" {
   description = "Azure region for resources"
   type        = string
-  default     = "eastus"
+  default     = "eastus2"
 }
 
 variable "environment" {
@@ -102,6 +102,11 @@ variable "apim_publisher_email" {
   description = "Publisher email for API Management"
   type        = string
   default     = "admin@aifoundry.com"
+}
+
+variable "halo_base_url" {
+  description = "Base URL of the Halo ITSM API (e.g., https://yourinstance.haloitsm.com/api)"
+  type        = string
 }
 
 variable "apim_sku" {

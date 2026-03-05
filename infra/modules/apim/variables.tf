@@ -58,6 +58,11 @@ variable "identity_client_id" {
   default     = null
 }
 
+variable "halo_base_url" {
+  description = "Base URL of the Halo ITSM API (e.g., https://yourinstance.haloitsm.com/api)"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

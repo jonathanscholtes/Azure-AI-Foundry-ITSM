@@ -10,7 +10,7 @@ param (
     [string]$Subscription,
     
     [Parameter(Mandatory=$false)]
-    [string]$Location = "eastus",
+    [string]$Location = "eastus2",
     
     [Parameter(Mandatory=$false)]
     [string]$Environment = "dev"
@@ -20,7 +20,7 @@ Set-StrictMode -Version Latest
 Set-Variable -Name ErrorActionPreference -Value 'Stop'
 
 # Import common functions
-Import-Module "$PSScriptRoot\common\DeploymentFunctions.psm1" -Force
+Import-Module "$PSScriptRoot/common/DeploymentFunctions.psm1" -Force
 
 function Connect-AzureSubscription {
     param(
@@ -29,10 +29,11 @@ function Connect-AzureSubscription {
     
     Write-Title "Azure Authentication"
     
-    # Configure Azure CLI
-    Write-Info "Configuring Azure CLI..."
-    az config set core.enable_broker_on_windows=false | Out-Null
-    az config set core.login_experience_v2=off | Out-Null
+    # Configure Azure CLI (Windows-specific broker)
+    if ($IsWindows) {
+        az config set core.enable_broker_on_windows=false 2>$null | Out-Null
+    }
+    az config set core.login_experience_v2=off 2>$null | Out-Null
     
     # Check current authentication
     try {
@@ -91,11 +92,11 @@ function New-TerraformVarsFile {
             return $false
         }
         
-        $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-        $resourceToken = Get-RandomAlphaNumeric -Length 8 -Seed $timestamp
+        $resourceToken = Get-ResourceToken -SubscriptionId $SubscriptionId
+        $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
         
         # Load template
-        $templatePath = Join-Path $PSScriptRoot "..\infra\terraform.tfvars.tpl"
+        $templatePath = Join-Path $PSScriptRoot "../infra/terraform.tfvars.tpl"
         if (-not (Test-Path $templatePath)) {
             Write-Error "Template not found: $templatePath"
             return $false
@@ -380,7 +381,7 @@ if ($Action -eq "destroy") {
         exit 1
     }
     
-    $infraDir = Join-Path $PSScriptRoot "..\infra"
+    $infraDir = Join-Path $PSScriptRoot "../infra"
     Set-Location -Path $infraDir
     
     if (Destroy-Resources) {
@@ -404,7 +405,7 @@ if ($Action -in @("init", "plan", "apply", "all", "validate")) {
 }
 
 # Change to infra directory
-$infraDir = Join-Path $PSScriptRoot "..\infra"
+$infraDir = Join-Path $PSScriptRoot "../infra"
 Write-Info "Changing to infrastructure directory: $infraDir"
 if (-not (Test-Path $infraDir)) {
     Write-Error "Infrastructure directory not found: $infraDir"

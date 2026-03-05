@@ -6,6 +6,9 @@ module "resource_group" {
   tags                = local.common_tags
 }
 
+# Current deploying user context (for role assignments)
+data "azurerm_client_config" "current" {}
+
 module "identity" {
   source = "./modules/identity"
 
@@ -76,6 +79,7 @@ module "apim" {
   # After pushing secret via PowerShell, run: terraform apply -var="key_vault_secret_identifier=<uri>" -var="identity_client_id=<client-id>"
   key_vault_secret_identifier = var.key_vault_secret_identifier
   identity_client_id          = var.identity_client_id
+  halo_base_url          = var.halo_base_url
   tags                   = local.common_tags
 }
 
@@ -102,42 +106,22 @@ module "ai_services" {
   embedding_capacity     = var.ai_services_deployment_embedding_capacity
 }
 
-# App Service Plan Module
-module "apps" {
-  source = "./modules/app"
+# ================================================
+# Deploying User Role Assignments
+# These allow the workshop participant to create/manage Foundry agents
+# and invoke AI services from the notebook and portal.
+# ================================================
 
-  project_name        = var.project_name
-  environment_name    = var.environment_name
-  resource_token      = local.resource_token
-  location            = var.location
-  resource_group_name = azurerm_resource_group.main.name
+# Azure AI Developer — create, configure, and manage Foundry agents
+resource "azurerm_role_assignment" "current_user_ai_developer" {
+  scope                = module.ai_services.ai_account_id
+  role_definition_name = "Azure AI Developer"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
-# Application Module (Web Apps and Function Apps) - Optional
-module "applications" {
-  count  = var.deploy_applications ? 1 : 0
-  source = "./modules/applications"
-
-  project_name               = var.project_name
-  environment_name           = var.environment_name
-  resource_token             = local.resource_token
-  location                   = var.location
-  resource_group_name        = azurerm_resource_group.main.name
-  managed_identity_id        = module.security.managed_identity_id
-  log_analytics_workspace_name = module.monitor.log_analytics_workspace_name
-  app_insights_name          = module.monitor.application_insights_name
-  app_service_plan_name      = module.apps.app_service_plan_name
-  key_vault_uri              = module.security.key_vault_uri
-  openai_endpoint            = var.openai_endpoint != "" ? var.openai_endpoint : module.ai.openai_endpoint
-  storage_account_name       = module.data.storage_account_name
-  ai_account_endpoint        = module.ai.ai_account_endpoint
-  cosmosdb_endpoint          = module.data.cosmosdb_endpoint
-
-  depends_on = [
-    module.apps,
-    module.monitor,
-    module.security,
-    module.data,
-    module.ai
-  ]
+# Cognitive Services OpenAI User — invoke models (GPT-4o, embeddings)
+resource "azurerm_role_assignment" "current_user_openai_user" {
+  scope                = module.ai_services.ai_account_id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = data.azurerm_client_config.current.object_id
 }

@@ -15,6 +15,9 @@ apim_publisher_email = "admin@aifoundry.com"
 apim_sku             = "Developer"
 apim_sku_capacity    = 1
 
+# Halo ITSM
+halo_base_url        = "https://YOURINSTANCE.haloitsm.com/api"
+
 # Storage
 storage_account_name = "stg${ResourceToken}"
 container_registry_name = "acr${ResourceToken}"

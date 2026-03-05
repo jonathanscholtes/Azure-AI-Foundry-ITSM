@@ -49,7 +49,7 @@ resource "azurerm_api_management_api" "halo_http" {
   api_management_name = azurerm_api_management.main.name
   revision            = "1"
   display_name        = "Halo ITSM API"
-  service_url         = "https://scholtes.haloitsm.com/api"
+  service_url         = var.halo_base_url
   path                = "halo"
   protocols           = ["https"]
   subscription_required = false

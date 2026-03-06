@@ -14,7 +14,7 @@ Ensure the following are installed before starting:
 |---|---|---|
 | Terraform | >= 1.5 | **Windows:** `winget install HashiCorp.Terraform` · **macOS:** `brew install hashicorp/tap/terraform` · **Linux:** [Install guide](https://developer.hashicorp.com/terraform/install) |
 | Azure CLI | Latest | [Install guide](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) |
-| PowerShell | 7+ | **Windows:** `winget install Microsoft.PowerShell` · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
+| PowerShell | 5.1+ (Windows) · 7+ (Linux/macOS) | **Windows:** Built-in (5.1) or `winget install Microsoft.PowerShell` for 7+ · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
 | Python | 3.10+ | Required for Notebook demo |
 | Git | Latest | [Install guide](https://git-scm.com/downloads) |
 

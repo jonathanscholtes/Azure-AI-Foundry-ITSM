@@ -101,7 +101,7 @@ Azure-AI-Foundry-ITSM/
 |---|---|---|
 | Terraform | >= 1.5 | **Windows:** `winget install HashiCorp.Terraform` · **macOS:** `brew install hashicorp/tap/terraform` · **Linux:** [Install guide](https://developer.hashicorp.com/terraform/install) |
 | Azure CLI | Latest | [Install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) · `az login` authenticated |
-| PowerShell | 7+ | **Windows:** Built-in or `winget install Microsoft.PowerShell` · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
+| PowerShell | 5.1+ (Windows) · 7+ (Linux/macOS) | **Windows:** Built-in (5.1) or `winget install Microsoft.PowerShell` for 7+ · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
 | Python | 3.10+ | Required for the notebook demo |
 | Azure subscription | — | Sufficient quota for OpenAI, APIM, AI Search. **Owner or Contributor + User Access Administrator** role required. |
 | Halo ITSM API Key | — | Register an application in Halo (**Configuration → Integrations → Halo API → Authorise a new application**, auth method: `API Key`). See [Deployment_Steps.md](docs/deployment_Steps.md#halo-itsm) for full steps. |
@@ -120,7 +120,7 @@ To find your subscription ID:
 az account list --output table
 ```
 
-**Windows (PowerShell 7+):**
+**Windows (PowerShell 5.1+):**
 ```powershell
 az login
 az account set --subscription "YOUR-SUBSCRIPTION-ID"

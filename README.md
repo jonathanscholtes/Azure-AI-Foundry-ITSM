@@ -25,7 +25,7 @@ This project provisions all Azure infrastructure via Terraform and configures an
 
 ## 📐 Architecture
 
-![design](media/design.png)
+![design](media/design2.png)
 
 
 ### Core Components

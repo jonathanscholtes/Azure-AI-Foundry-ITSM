@@ -1,10 +1,42 @@
-# Microsoft Foundry Service Desk Agent
+# Microsoft Foundry ITSM Agent Workshop
 
-**An Agentic Service Desk Powered by Microsoft Foundry, APIM MCP, and Halo ITSM**
+Hands-on workshop demonstrating how to build agentic service desk integrations using:
 
-Microsoft Foundry ITSM deploys a complete, production-oriented infrastructure on Azure that connects a Microsoft Foundry AI agent to a Halo ITSM knowledge base through API Management acting as a Model Context Protocol (MCP) server — enabling intelligent, grounded IT support responses.
+- **Microsoft Foundry** — AI agent orchestration and tool invocation
+- **Model Context Protocol (MCP)** — standard interface for exposing enterprise capabilities as agent tools
+- **Azure API Management** — secure, governed gateway between agents and backend systems
+- **Halo ITSM** — example enterprise system integrated through MCP
 
-> **Flow:** User → Microsoft Foundry Agent → APIM (MCP Server) → Halo ITSM API → Knowledge Base Articles
+---
+
+## What This Repository Demonstrates
+
+This repository contains the workshop environment used to demonstrate how **agentic AI solutions can securely integrate with enterprise systems** using Microsoft Foundry, Model Context Protocol (MCP), and Azure API Management.
+
+The scenario models a **service desk automation agent** that can:
+
+- Retrieve knowledge from an ITSM knowledge base
+- Invoke enterprise tools exposed through MCP
+- Route requests securely through Azure API Management
+- Use Microsoft Foundry agents to orchestrate tool calls
+
+The environment is pre-configured to allow participants to focus on **agent configuration, MCP tool registration, and end-to-end testing** during the workshop.
+
+---
+
+## Workshop Flow
+
+During the hands-on portion of the workshop, participants will:
+
+1. Review the deployed Azure resources
+2. Configure Azure API Management policies for MCP tools
+3. Register MCP tools with a Microsoft Foundry agent
+4. Test agent tool-calling behavior
+5. Validate the end-to-end workflow with the Halo ITSM integration
+
+The goal is to demonstrate how **agents can securely interact with enterprise systems using MCP and API Management**.
+
+> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)** · Workshop guide: **[docs/workshop.md](docs/workshop.md)**
 
 ---
 
@@ -23,10 +55,24 @@ This project provisions all Azure infrastructure via Terraform and configures an
 
 ---
 
-## 📐 Architecture
+## 📐 Architecture Overview
+
+The workshop environment demonstrates how Microsoft Foundry agents interact with enterprise systems through MCP and Azure API Management.
+
+**Flow:**
+
+```
+User → Microsoft Foundry Agent → Azure API Management (MCP Server) → Halo ITSM API → Knowledge Base Articles
+```
+
+**Components:**
+
+- **Microsoft Foundry Agent** — orchestrates reasoning and tool invocation
+- **Model Context Protocol (MCP)** — exposes enterprise capabilities as tools the agent can call
+- **Azure API Management** — governs and secures tool access between the agent and backend
+- **Halo ITSM API** — example enterprise system used by the agent to retrieve knowledge base articles
 
 ![design](media/design2.png)
-
 
 ### Core Components
 

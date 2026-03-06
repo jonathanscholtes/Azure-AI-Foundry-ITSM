@@ -259,8 +259,8 @@ PROJECT_ENDPOINT=https://<your-ai-account>.services.ai.azure.com/api/projects/<p
 # Model deployment name
 MODEL_DEPLOYMENT_NAME=gpt-4.1
 
-# MCP server URL — the SSE endpoint from Step 4
-MCP_SERVER_URL=https://<apim-name>.azure-api.net/<mcp-path>/sse
+# MCP server URL — the MCP endpoint from Step 4
+MCP_SERVER_URL=https://<apim-name>.azure-api.net/<mcp-path>/mcp
 
 # A local label for the MCP server connection
 MCP_SERVER_LABEL=halo-itsm-mcp
@@ -311,6 +311,7 @@ terraform destroy
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
+| `FlagMustBeSetForRestore` on AI Services | Soft-deleted account from a previous destroy | Run: `az cognitiveservices account purge --name <name> --resource-group <rg> --location <region>` then re-deploy |
 | `terraform apply` fails on APIM | APIM provisioning timeout (common) | Re-run `.\deploy.ps1` with the same parameters — Terraform is idempotent |
 | Notebook `AuthenticationError` | Missing role assignment | Ensure your account has `Azure AI User` on the AI Foundry resource |
 | Agent returns no results | MCP tool not connected to agent | In Foundry portal → agent → verify `Halo-ITSM-MCP` is listed under Tools |

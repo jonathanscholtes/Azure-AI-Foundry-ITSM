@@ -25,7 +25,7 @@ output "portal_url" {
 
 output "halo_http_api_id" {
   description = "ID of the Halo HTTP API"
-  value       = length(azurerm_api_management_api.halo_http) > 0 ? azurerm_api_management_api.halo_http[0].id : null
+  value       = azurerm_api_management_api.halo_http.id
 }
 
 output "kb_tag_id" {

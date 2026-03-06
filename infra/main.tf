@@ -67,7 +67,7 @@ module "container_registry" {
 module "apim" {
   source = "./modules/apim"
 
-  apim_name              = "${var.project_name}apim${var.environment}"
+  apim_name              = "${var.project_name}apim${var.resource_token}"
   location               = module.resource_group.location
   resource_group_name    = module.resource_group.name
   publisher_name         = var.apim_publisher_name
@@ -112,16 +112,34 @@ module "ai_services" {
 # and invoke AI services from the notebook and portal.
 # ================================================
 
-# Azure AI Developer — create, configure, and manage Foundry agents
-resource "azurerm_role_assignment" "current_user_ai_developer" {
-  scope                = module.ai_services.ai_account_id
-  role_definition_name = "Azure AI Developer"
-  principal_id         = data.azurerm_client_config.current.object_id
+# Azure AI Project Manager — create, configure, and manage Foundry agents (CognitiveServices-based)
+resource "azurerm_role_assignment" "current_user_ai_project_management" {
+  scope              = module.ai_services.ai_account_id
+  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/eadc314b-1a2d-4efa-be10-5d325db5065e"
+  principal_id       = data.azurerm_client_config.current.object_id
+
+  depends_on = [module.ai_services]
+}
+
+# Azure AI User — invoke agents and use AI services from the notebook
+resource "azurerm_role_assignment" "current_user_ai_user" {
+  scope              = module.ai_services.ai_account_id
+  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  principal_id       = data.azurerm_client_config.current.object_id
+
+  depends_on = [module.ai_services]
 }
 
 # Cognitive Services OpenAI User — invoke models (GPT-4.1, embeddings)
 resource "azurerm_role_assignment" "current_user_openai_user" {
   scope                = module.ai_services.ai_account_id
   role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+# Allow deploying user to write secrets to Key Vault during deployment
+resource "azurerm_role_assignment" "current_user_kv_secrets_officer" {
+  scope                = module.key_vault.id
+  role_definition_name = "Key Vault Secrets Officer"
   principal_id         = data.azurerm_client_config.current.object_id
 }

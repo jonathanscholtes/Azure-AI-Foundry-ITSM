@@ -39,16 +39,13 @@ resource "azurerm_api_management" "main" {
 # APIs
 # ================================================
 
-
-
-# Halo ITSM HTTP API - Only created when API key is provided for security
 resource "azurerm_api_management_api" "halo_http" {
-  count               = var.key_vault_secret_identifier != null ? 1 : 0
   name                = "halo-itsm-api"
   resource_group_name = var.resource_group_name
   api_management_name = azurerm_api_management.main.name
   revision            = "1"
   display_name        = "Halo ITSM API"
+  description         = "Proxies requests to the Halo ITSM instance. Injects the Halo API key from Key Vault via a named value so callers never handle credentials directly."
   service_url         = var.halo_base_url
   path                = "halo"
   protocols           = ["https"]
@@ -66,12 +63,10 @@ resource "azurerm_api_management_api" "halo_http" {
 # API Policies
 # ================================================
 
-
-
-# HTTP API Policy
+# HTTP API Policy - only applied once the Named Value (KV secret) exists
 resource "azurerm_api_management_api_policy" "halo_http_policy" {
   count               = var.key_vault_secret_identifier != null ? 1 : 0
-  api_name            = azurerm_api_management_api.halo_http[0].name
+  api_name            = azurerm_api_management_api.halo_http.name
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
 
@@ -104,24 +99,29 @@ resource "azurerm_api_management_api_policy" "halo_http_policy" {
 
 # Knowledgebase GET operation
 resource "azurerm_api_management_api_operation" "knowledgebase" {
-  count               = var.key_vault_secret_identifier != null ? 1 : 0
   operation_id        = "knowledgebase"
-  api_name            = azurerm_api_management_api.halo_http[0].name
+  api_name            = azurerm_api_management_api.halo_http.name
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
   display_name        = "knowledgebase"
+  description         = "Returns all knowledge base articles from the Halo ITSM knowledge base. Use this to retrieve the full article list for search, filtering, or agent context grounding."
   method              = "GET"
   url_template        = "/KBArticle"
+
+  response {
+    status_code = 200
+    description = "Array of knowledge base article objects"
+  }
 }
 
 # Knowledgebase by ID GET operation
 resource "azurerm_api_management_api_operation" "knowledgebase_by_id" {
-  count               = var.key_vault_secret_identifier != null ? 1 : 0
   operation_id        = "knowledgebase-by-id"
-  api_name            = azurerm_api_management_api.halo_http[0].name
+  api_name            = azurerm_api_management_api.halo_http.name
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
   display_name        = "knowledgebasebyid"
+  description         = "Retrieves a single knowledge base article by its Halo ITSM article ID. Use this when an agent needs the full content of a specific article to answer a support query."
   method              = "GET"
   url_template        = "/KBArticle/{id}"
 
@@ -129,6 +129,17 @@ resource "azurerm_api_management_api_operation" "knowledgebase_by_id" {
     name        = "id"
     required    = true
     type        = "string"
+    description = "Halo ITSM knowledge base article ID"
+  }
+
+  response {
+    status_code = 200
+    description = "Knowledge base article object"
+  }
+
+  response {
+    status_code = 404
+    description = "Article not found"
   }
 }
 
@@ -149,16 +160,14 @@ resource "azurerm_api_management_tag" "kb" {
 
 # Link knowledgebase operation to KB tag
 resource "azurerm_api_management_api_operation_tag" "knowledgebase_kb" {
-  count            = var.key_vault_secret_identifier != null ? 1 : 0
-  api_operation_id = azurerm_api_management_api_operation.knowledgebase[0].id
+  api_operation_id = azurerm_api_management_api_operation.knowledgebase.id
   name             = azurerm_api_management_tag.kb.name
   display_name     = azurerm_api_management_tag.kb.display_name
 }
 
 # Link knowledgebase_by_id operation to KB tag
 resource "azurerm_api_management_api_operation_tag" "knowledgebase_by_id_kb" {
-  count            = var.key_vault_secret_identifier != null ? 1 : 0
-  api_operation_id = azurerm_api_management_api_operation.knowledgebase_by_id[0].id
+  api_operation_id = azurerm_api_management_api_operation.knowledgebase_by_id.id
   name             = azurerm_api_management_tag.kb.name
   display_name     = azurerm_api_management_tag.kb.display_name
 }

@@ -37,9 +37,6 @@ resource "azapi_resource" "ai_account" {
     sku = {
       name = "S0"
     }
-    tags = {
-      "SecurityControl" = "ignore"
-    }
   }
 
   depends_on = []

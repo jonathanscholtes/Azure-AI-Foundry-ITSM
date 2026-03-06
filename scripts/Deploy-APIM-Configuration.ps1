@@ -68,7 +68,7 @@ function Deploy-Secrets {
     
     # Set Halo API Key in Key Vault if provided
     if (-not [string]::IsNullOrEmpty($HaloApiKey)) {
-        Set-KeyVaultSecret -KeyVaultName $keyVaultName -SecretName "halo-api-key" -SecretValue $HaloApiKey
+        $null = Set-KeyVaultSecret -KeyVaultName $keyVaultName -SecretName "halo-api-key" -SecretValue $HaloApiKey
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Failed to set halo-api-key secret"
             return $null
@@ -88,23 +88,13 @@ function Get-KeyVaultSecretUri {
         [string]$SecretName
     )
     
-    Write-Info "Retrieving Key Vault secret URI..."
+    Write-Info "Constructing Key Vault secret URI..."
     
-    try {
-        # Get the secret metadata to retrieve its URI
-        $secret = az keyvault secret show --vault-name $KeyVaultName --name $SecretName --query "id" -o tsv 2>$null
-        
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty($secret)) {
-            Write-Success "Found secret URI: $secret"
-            return $secret
-        } else {
-            Write-Warning "Could not retrieve secret URI"
-            return $null
-        }
-    } catch {
-        Write-Warning "Failed to retrieve secret URI: $_"
-        return $null
-    }
+    # Construct the versionless URI directly — no network call required.
+    # APIM resolves versionless URIs to the latest secret version automatically.
+    $secretUri = "https://${KeyVaultName}.vault.azure.net/secrets/${SecretName}"
+    Write-Success "Secret URI: $secretUri"
+    return $secretUri
 }
 
 function Update-TerraformForNamedValue {
@@ -154,13 +144,17 @@ try {
         exit 1
     }
     
-    # Get secret URI and identity client ID for subsequent Terraform apply
+    # Construct the secret URI locally — no network call needed.
+    # Always apply APIM named value and policy after secret is written.
     $secretUri = Get-KeyVaultSecretUri -KeyVaultName $keyVaultName -SecretName "halo-api-key"
     
-    if ($secretUri -and $outputs.managed_identity_client_id) {
-        $identityClientId = $outputs.managed_identity_client_id.value
-        Update-TerraformForNamedValue -SecretUri $secretUri -IdentityClientId $identityClientId
+    if (-not $outputs.managed_identity_client_id -or [string]::IsNullOrEmpty($outputs.managed_identity_client_id.value)) {
+        Write-Error "managed_identity_client_id not found in Terraform outputs. Run 'terraform output' to verify."
+        exit 1
     }
+    
+    $identityClientId = $outputs.managed_identity_client_id.value
+    Update-TerraformForNamedValue -SecretUri $secretUri -IdentityClientId $identityClientId
     
     Write-Success "Secrets deployment completed successfully"
     exit 0

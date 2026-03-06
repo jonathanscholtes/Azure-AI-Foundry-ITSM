@@ -146,7 +146,7 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    |---|---|
    | **Name** | `Halo-ITSM-MCP` |
    | **API** | `Halo ITSM API` *(the API deployed by Terraform)* |
-   | **Tools** | Select `KBArticle` and `KBArticle/{id}` |
+   | **Tools** | Select both operations: `knowledgebase` (GET /KBArticle) and `knowledgebasebyid` (GET /KBArticle/{id}) |
    | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows.` |
 
 5. Click **Create**
@@ -291,12 +291,12 @@ When finished, destroy all Azure resources to avoid ongoing charges:
 
 **Windows:**
 ```powershell
-.\deploy.ps1 -Action destroy -Subscription "YOUR-SUBSCRIPTION-ID"
+.\deploy.ps1 -Subscription "YOUR-SUBSCRIPTION-ID" -Destroy
 ```
 
 **Linux / macOS:**
 ```powershell
-pwsh ./deploy.ps1 -Action destroy -Subscription "YOUR-SUBSCRIPTION-ID"
+pwsh ./deploy.ps1 -Subscription "YOUR-SUBSCRIPTION-ID" -Destroy
 ```
 
 Or manually:
@@ -311,7 +311,7 @@ terraform destroy
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| `terraform apply` fails on APIM | APIM provisioning timeout (common) | Re-run `.\deploy.ps1 -Action apply` — Terraform is idempotent |
+| `terraform apply` fails on APIM | APIM provisioning timeout (common) | Re-run `.\deploy.ps1` with the same parameters — Terraform is idempotent |
 | Notebook `AuthenticationError` | Missing role assignment | Ensure your account has `Azure AI User` on the AI Foundry resource |
 | Agent returns no results | MCP tool not connected to agent | In Foundry portal → agent → verify `Halo-ITSM-MCP` is listed under Tools |
 | APIM returns 401 on MCP calls | Wrong or missing subscription key | Check the subscription key in APIM → Subscriptions |

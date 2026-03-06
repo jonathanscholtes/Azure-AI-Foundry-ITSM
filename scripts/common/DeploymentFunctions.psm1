@@ -1,6 +1,13 @@
 # Common deployment functions for Microsoft Foundry ITSM
 # This module contains shared utilities used across deployment scripts
 
+# PowerShell 5.1 compatibility — $IsWindows/$IsMacOS/$IsLinux are only automatic in PS 7+
+if (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue)) {
+    $IsWindows = $true   # Windows PowerShell 5.1 only runs on Windows
+    $IsMacOS   = $false
+    $IsLinux   = $false
+}
+
 # Helper functions for formatted output
 function Write-Title {
     param([string]$Title)
@@ -29,11 +36,11 @@ function Initialize-AzureContext {
     
     Write-Host "`n=== Initializing Azure Context ===" -ForegroundColor Cyan
     
-    # Configure Azure CLI settings (Windows-specific broker)
+    # Configure Azure CLI settings (Windows-specific broker) — suppress experimental warnings
     if ($IsWindows) {
-        az config set core.enable_broker_on_windows=false 2>$null | Out-Null
+        az config set core.enable_broker_on_windows=false 2>&1 | Out-Null
     }
-    az config set core.login_experience_v2=off 2>$null | Out-Null
+    az config set core.login_experience_v2=off 2>&1 | Out-Null
     
     # Check current authentication
     try {

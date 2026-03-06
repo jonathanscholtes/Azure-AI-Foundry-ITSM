@@ -113,21 +113,27 @@ function Update-TerraformForNamedValue {
         [string]$IdentityClientId
     )
     
-    Write-Title "Creating APIM Named Value"
+    Write-Title "Creating APIM Named Value via Terraform"
     
     Write-Info "Secret URI: $SecretUri"
     Write-Info "Identity Client ID: $IdentityClientId"
     
-    Write-Host "`nTo create the APIM named value that references the Key Vault secret, run:" -ForegroundColor Cyan
-    Write-Host @"
+    $infraDir = Join-Path $PSScriptRoot "../infra"
     
-    cd infra
-    terraform apply -var="key_vault_secret_identifier=$SecretUri" -var="identity_client_id=$IdentityClientId"
-    cd ..
+    Write-Info "Running targeted Terraform apply for APIM named value..."
+    & terraform -chdir="$infraDir" apply `
+        -var="key_vault_secret_identifier=$SecretUri" `
+        -var="identity_client_id=$IdentityClientId" `
+        -auto-approve `
+        -target="module.apim"
     
-"@ -ForegroundColor Yellow
-    
-    Write-Host "This will create the 'halo-api-key' named value in APIM that references the secret." -ForegroundColor Cyan
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "APIM named value 'halo-api-key' created successfully"
+        return $true
+    } else {
+        Write-Error "Failed to create APIM named value"
+        return $false
+    }
 }
 
 # Main execution

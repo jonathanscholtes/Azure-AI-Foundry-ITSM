@@ -19,58 +19,29 @@ param (
     [string]$HaloBaseUrl
 )
 
+# PowerShell 5.1 compatibility — $IsWindows/$IsMacOS/$IsLinux are only automatic in PS 7+
+if (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue)) {
+    $IsWindows = $true   # Windows PowerShell 5.1 only runs on Windows
+    $IsMacOS   = $false
+    $IsLinux   = $false
+}
+
 Set-StrictMode -Version Latest
 Set-Variable -Name ErrorActionPreference -Value 'Stop'
 
 # Import common functions
 Import-Module "$PSScriptRoot/common/DeploymentFunctions.psm1" -Force
 
-function Connect-AzureSubscription {
-    param(
-        [string]$SubscriptionId
-    )
-    
-    Write-Title "Azure Authentication"
-    
-    # Configure Azure CLI (Windows-specific broker)
-    if ($IsWindows) {
-        az config set core.enable_broker_on_windows=false 2>$null | Out-Null
+function Get-SubscriptionId {
+    # Retrieve the current subscription ID (auth already handled by orchestrator)
+    $subId = az account show --query "id" -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($subId)) {
+        Write-Error "Not authenticated or no subscription set. Ensure the orchestrator ran Initialize-AzureContext first."
+        return $null
     }
-    az config set core.login_experience_v2=off 2>$null | Out-Null
-    
-    # Check current authentication
-    try {
-        $currentAccount = az account show --query "id" -o tsv 2>$null
-        if ($currentAccount) {
-            Write-Success "Already authenticated to Azure"
-        } else {
-            throw "Not authenticated"
-        }
-    } catch {
-        Write-Info "Logging into Azure..."
-        az login | Out-Null
-    }
-    
-    # Set subscription
-    if ($SubscriptionId) {
-        Write-Info "Setting subscription to: $SubscriptionId"
-        az account set --subscription $SubscriptionId
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to set subscription"
-            return $false
-        }
-    } else {
-        Write-Info "Using default/current subscription"
-    }
-    
-    # Get subscription details
-    $subscription = az account show --query "{name: name, id: id}" -o json | ConvertFrom-Json
-    Write-Success "Connected to: $($subscription.name)"
-    Write-Info "Subscription ID: $($subscription.id)"
-    
-    return $subscription.id
+    Write-Success "Using subscription: $subId"
+    return $subId
 }
-
 
 
 
@@ -190,111 +161,6 @@ function Initialize-Terraform {
     }
 }
 
-function Validate-Configuration {
-    Write-Title "Validating Terraform Configuration"
-    
-    terraform validate
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Configuration is valid"
-        return $true
-    } else {
-        Write-Error "Configuration validation failed"
-        return $false
-    }
-}
-
-function Plan-Deployment {
-    Write-Title "Planning Terraform Deployment"
-    
-    Write-Info "Generating execution plan..."
-    terraform plan -out=tfplan
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Plan created successfully"
-        
-        # Show summary
-        try {
-            $planOutput = terraform show -json tfplan | ConvertFrom-Json
-            $resourceChanges = @{
-                create = ($planOutput.resource_changes | Where-Object { $_.change.actions -contains "create" }).Count
-                update = ($planOutput.resource_changes | Where-Object { $_.change.actions -contains "update" }).Count
-                delete = ($planOutput.resource_changes | Where-Object { $_.change.actions -contains "delete" }).Count
-            }
-            
-            Write-Host ""
-            Write-Host "Resource Changes Summary:" -ForegroundColor Cyan
-            Write-Host "  Create: $($resourceChanges.create) resources"
-            Write-Host "  Update: $($resourceChanges.update) resources"
-            Write-Host "  Delete: $($resourceChanges.delete) resources"
-            Write-Host ""
-        } catch {
-            Write-Warning "Could not parse plan summary"
-        }
-        return $true
-    } else {
-        Write-Error "Plan creation failed"
-        return $false
-    }
-}
-
-function Apply-Deployment {
-    Write-Title "Applying Terraform Configuration"
-    Write-Warning "This will create/modify Azure resources"
-    
-    if (-not (Test-Path "tfplan")) {
-        Write-Warning "Plan file not found. Creating new plan..."
-        if (-not (Plan-Deployment)) {
-            return $false
-        }
-    }
-    
-    $confirmation = Read-Host "Type 'yes' to confirm deployment"
-    if ($confirmation -ne "yes") {
-        Write-Host "Deployment cancelled" -ForegroundColor Yellow
-        return $false
-    }
-    
-    Write-Info "Applying infrastructure changes..."
-    Write-Host "This may take 10-15 minutes..." -ForegroundColor Cyan
-    
-    terraform apply tfplan
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Deployment applied successfully"
-        Show-Outputs
-        return $true
-    } else {
-        Write-Error "Deployment failed"
-        return $false
-    }
-}
-
-function Show-Outputs {
-    Write-Title "Deployment Outputs"
-    
-    if (-not (Test-Path .terraform)) {
-        Write-Warning "Terraform not initialized. Run 'init' action first."
-        return $false
-    }
-    
-    terraform output
-    return $true
-}
-
-function Get-TerraformOutputs {
-    if (-not (Test-Path .terraform)) {
-        return $null
-    }
-    
-    try {
-        $outputs = terraform output -json | ConvertFrom-Json
-        return $outputs
-    } catch {
-        return $null
-    }
-}
-
 function Destroy-Resources {
     Write-Title "Destroying Resources"
     Write-Host "WARNING: All resources created by Terraform will be permanently deleted!" -ForegroundColor Red
@@ -317,7 +183,7 @@ function Destroy-Resources {
     
     Write-Host ""
     Write-Info "Destroying infrastructure..."
-    terraform destroy -auto-approve -verbose
+    terraform destroy -auto-approve
     
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Resources destroyed successfully"
@@ -326,40 +192,6 @@ function Destroy-Resources {
         Write-Host "ERROR: Destruction failed" -ForegroundColor Red
         return $false
     }
-}
-
-function Format-Code {
-    Write-Title "Formatting Terraform Code"
-    
-    terraform fmt -recursive
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Code formatted"
-        return $true
-    } else {
-        Write-Error "Code formatting failed"
-        return $false
-    }
-}
-
-function Clean-State {
-    Write-Title "Cleaning Local State"
-    Write-Warning "This will remove local Terraform files!"
-    
-    $confirmation = Read-Host "Type 'yes' to confirm"
-    if ($confirmation -ne "yes") {
-        Write-Host "Clean cancelled" -ForegroundColor Yellow
-        return $false
-    }
-    
-    Write-Info "Removing Terraform state files and cache..."
-    Remove-Item -Path ".terraform" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path ".terraform.lock.hcl" -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "tfplan" -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path "*.tfstate*" -Force -ErrorAction SilentlyContinue
-    
-    Write-Success "State cleaned"
-    return $true
 }
 
 # Main execution
@@ -375,16 +207,6 @@ if (-not (Test-Prerequisites)) {
 # Handle destroy action
 if ($Action -eq "destroy") {
     Write-Info "Executing destroy action..."
-    if (-not (Test-Prerequisites)) {
-        Write-Error "Prerequisites check failed"
-        exit 1
-    }
-    
-    $subscriptionId = Connect-AzureSubscription -SubscriptionId $Subscription
-    if (-not $subscriptionId) {
-        Write-Error "Failed to connect to Azure"
-        exit 1
-    }
     
     $infraDir = Join-Path $PSScriptRoot "../infra"
     Set-Location -Path $infraDir
@@ -396,15 +218,12 @@ if ($Action -eq "destroy") {
     }
 }
 
-# Initialize if needed for deployment actions
+# Get subscription ID (auth already set by orchestrator's Initialize-AzureContext)
 if ($Action -in @("init", "plan", "apply", "all", "validate")) {
     Write-Info "Preparing for deployment action: $Action"
-    
-    # Connect to Azure
-    Write-Info "Connecting to Azure subscription..."
-    $subscriptionId = Connect-AzureSubscription -SubscriptionId $Subscription
+    $subscriptionId = Get-SubscriptionId
     if (-not $subscriptionId) {
-        Write-Error "Failed to connect to Azure"
+        Write-Error "Failed to determine subscription. Was Initialize-AzureContext called?"
         exit 1
     }
 }
@@ -490,6 +309,17 @@ switch ($Action.ToLower()) {
         
         while ($retryCount -lt $maxRetries -and -not $applySuccess) {
             $retryCount++
+            
+            # Re-generate plan before each attempt (plan is consumed/invalidated after apply)
+            if ($retryCount -gt 1) {
+                Write-Info "Re-planning before retry..."
+                terraform plan -out=tfplan
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Error "Failed to re-plan before retry attempt $retryCount"
+                    exit 1
+                }
+            }
+            
             Write-Host ""
             Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
             
@@ -537,6 +367,17 @@ switch ($Action.ToLower()) {
         
         while ($retryCount -lt $maxRetries -and -not $applySuccess) {
             $retryCount++
+            
+            # Re-generate plan before each attempt (plan is consumed/invalidated after apply)
+            if ($retryCount -gt 1) {
+                Write-Info "Re-planning before retry..."
+                terraform plan -out=tfplan
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Error "Failed to re-plan before retry attempt $retryCount"
+                    exit 1
+                }
+            }
+            
             Write-Host ""
             Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
             

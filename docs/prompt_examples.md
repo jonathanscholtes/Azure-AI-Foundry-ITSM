@@ -6,8 +6,8 @@ The agent has access to two MCP tools backed by the Halo ITSM knowledge base:
 
 | Tool | What it does |
 |---|---|
-| `KBArticle` | Search and list knowledge base articles by keyword |
-| `KBArticle/{id}` | Retrieve the full text of a specific article by ID |
+| `knowledgebase` (GET /KBArticle) | Search and list knowledge base articles by keyword |
+| `knowledgebasebyid` (GET /KBArticle/{id}) | Retrieve the full text of a specific article by ID |
 
 The agent is instructed to **only** answer from knowledge base content — it will not use general knowledge or training data.
 
@@ -146,7 +146,7 @@ What is the weather like today?
 
 ## 💡 Tips for the Workshop
 
-- Start with a **natural language query** — the agent will call `KBArticle` to search, then `KBArticle/{id}` to fetch the full article
+- Start with a **natural language query** — the agent will call `knowledgebase` to search, then `knowledgebasebyid` to fetch the full article
 - The agent returns the **full verbatim article text** — it does not summarize
 - If a search returns multiple results, ask the agent to retrieve a specific one by ID
 - Try rephrasing a query if the first search returns no results (e.g., "password reset" vs "reset my password")

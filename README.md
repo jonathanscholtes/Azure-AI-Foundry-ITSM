@@ -1,4 +1,4 @@
-# 🤖 Microsoft Foundry ITSM
+# Microsoft Foundry Service Desk Agent
 
 **An Agentic Service Desk Powered by Microsoft Foundry, APIM MCP, and Halo ITSM**
 
@@ -233,12 +233,12 @@ After completing testing or when no longer needed, destroy all Azure resources t
 
 **Windows:**
 ```powershell
-.\deploy.ps1 -Action destroy -Subscription "YOUR-SUBSCRIPTION-ID"
+.\deploy.ps1 -Subscription "YOUR-SUBSCRIPTION-ID" -Destroy
 ```
 
 **Linux / macOS:**
 ```powershell
-pwsh ./deploy.ps1 -Action destroy -Subscription "YOUR-SUBSCRIPTION-ID"
+pwsh ./deploy.ps1 -Subscription "YOUR-SUBSCRIPTION-ID" -Destroy
 ```
 
 Or manually:

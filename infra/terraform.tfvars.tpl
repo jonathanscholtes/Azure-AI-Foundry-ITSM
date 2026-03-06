@@ -7,7 +7,7 @@ resource_group_name = "rg-aifoundry-${Environment}-${ResourceToken}"
 
 # Search Service
 search_service_name = "aisearch-${ResourceToken}"
-search_sku          = "free"
+search_sku          = "basic"
 
 # API Management
 apim_publisher_name  = "AI Foundry ITSM"

@@ -36,7 +36,7 @@ During the hands-on portion of the workshop, participants will:
 
 The goal is to demonstrate how **agents can securely interact with enterprise systems using MCP and API Management**.
 
-> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)** · Workshop guide: **[docs/workshop.md](docs/workshop.md)**
+> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)** 
 
 ---
 
@@ -102,7 +102,6 @@ Azure-AI-Foundry-ITSM/
 │
 ├── docs/
 │   ├── Deployment_Steps.md             # Step-by-step deployment and configuration guide
-│   ├── workshop.md                     # 4-hour workshop agenda and guide
 │   └── prompt_examples.md             # Sample prompts for testing the agent
 │
 ├── infra/                              # Infrastructure as Code (Terraform)

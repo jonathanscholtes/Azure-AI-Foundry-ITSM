@@ -243,7 +243,7 @@ Write-Info "Executing terraform action: $Action"
 switch ($Action.ToLower()) {
     "init" {
         Write-Title "Initializing Terraform"
-        terraform init 2>&1
+        terraform init
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Terraform initialization failed"
             exit 1
@@ -255,7 +255,7 @@ switch ($Action.ToLower()) {
         Initialize-Terraform
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        terraform validate 2>&1
+        terraform validate
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Configuration validation failed"
             exit 1
@@ -267,11 +267,11 @@ switch ($Action.ToLower()) {
         Initialize-Terraform
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        terraform validate 2>&1
+        terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         Write-Info "Generating execution plan..."
-        terraform plan -out=tfplan 2>&1
+        terraform plan -out=tfplan
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Plan creation failed"
             exit 1
@@ -283,10 +283,10 @@ switch ($Action.ToLower()) {
         Initialize-Terraform
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        terraform validate 2>&1
+        terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        terraform plan -out=tfplan 2>&1
+        terraform plan -out=tfplan
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         Write-Warning "This will create/modify Azure resources"
@@ -303,7 +303,7 @@ switch ($Action.ToLower()) {
             # Re-generate plan before each attempt (plan is consumed/invalidated after apply)
             if ($retryCount -gt 1) {
                 Write-Info "Re-planning before retry..."
-                terraform plan -out=tfplan 2>&1
+                terraform plan -out=tfplan
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "Failed to re-plan before retry attempt $retryCount"
                     exit 1
@@ -313,11 +313,11 @@ switch ($Action.ToLower()) {
             Write-Host ""
             Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
             
-            terraform apply tfplan 2>&1
+            terraform apply tfplan
             if ($LASTEXITCODE -eq 0) {
                 $applySuccess = $true
                 Write-Success "Deployment applied successfully"
-                terraform output 2>&1
+                terraform output
             } else {
                 if ($retryCount -lt $maxRetries) {
                     Write-Host "Deployment attempt $retryCount failed. Waiting 30 seconds before retry..." -ForegroundColor Yellow
@@ -334,17 +334,17 @@ switch ($Action.ToLower()) {
         
         # Init
         Write-Info "Step 1/4: Initializing..."
-        terraform init 2>&1
+        terraform init
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         # Validate
         Write-Info "Step 2/4: Validating..."
-        terraform validate 2>&1
+        terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         # Plan
         Write-Info "Step 3/4: Planning..."
-        terraform plan -out=tfplan 2>&1
+        terraform plan -out=tfplan
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         # Apply with retries
@@ -361,7 +361,7 @@ switch ($Action.ToLower()) {
             # Re-generate plan before each attempt (plan is consumed/invalidated after apply)
             if ($retryCount -gt 1) {
                 Write-Info "Re-planning before retry..."
-                terraform plan -out=tfplan 2>&1
+                terraform plan -out=tfplan
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "Failed to re-plan before retry attempt $retryCount"
                     exit 1
@@ -371,11 +371,11 @@ switch ($Action.ToLower()) {
             Write-Host ""
             Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
             
-            terraform apply tfplan 2>&1
+            terraform apply tfplan
             if ($LASTEXITCODE -eq 0) {
                 $applySuccess = $true
                 Write-Success "Full deployment completed successfully"
-                terraform output 2>&1
+                terraform output
             } else {
                 if ($retryCount -lt $maxRetries) {
                     Write-Host "Deployment attempt $retryCount failed. Waiting 30 seconds before retry..." -ForegroundColor Yellow
@@ -389,11 +389,11 @@ switch ($Action.ToLower()) {
     }
     "output" {
         Write-Title "Deployment Outputs"
-        terraform output 2>&1
+        terraform output
     }
     "fmt" {
         Write-Title "Formatting Terraform Code"
-        terraform fmt -recursive 2>&1
+        terraform fmt -recursive
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Code formatted"
         } else {

@@ -104,9 +104,42 @@ resource "azurerm_api_management_api_operation" "knowledgebase" {
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
   display_name        = "knowledgebase"
-  description         = "Returns all knowledge base articles from the Halo ITSM knowledge base. Use this to retrieve the full article list for search, filtering, or agent context grounding."
+  description         = "Search and list knowledge base articles from the Halo ITSM knowledge base. Pass the 'search' parameter to filter results by keyword rather than retrieving all articles."
   method              = "GET"
   url_template        = "/KBArticle"
+
+  request {
+    query_parameter {
+      name        = "search"
+      required    = false
+      type        = "string"
+      description = "Filter articles by keyword. Always supply this to narrow results before fetching full article content."
+    }
+    query_parameter {
+      name        = "count"
+      required    = false
+      type        = "integer"
+      description = "Maximum number of articles to return. Use to limit result size."
+    }
+    query_parameter {
+      name        = "pageinate"
+      required    = false
+      type        = "boolean"
+      description = "Whether to use pagination in the response."
+    }
+    query_parameter {
+      name        = "page_size"
+      required    = false
+      type        = "integer"
+      description = "Number of results per page when using pagination."
+    }
+    query_parameter {
+      name        = "page_no"
+      required    = false
+      type        = "integer"
+      description = "Page number to return when using pagination."
+    }
+  }
 
   response {
     status_code = 200
@@ -121,15 +154,24 @@ resource "azurerm_api_management_api_operation" "knowledgebase_by_id" {
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
   display_name        = "knowledgebasebyid"
-  description         = "Retrieves a single knowledge base article by its Halo ITSM article ID. Use this when an agent needs the full content of a specific article to answer a support query."
+  description         = "Retrieves the full content of a single knowledge base article by its Halo ITSM article ID. Use 'includedetails=true' to ensure the complete article body is returned."
   method              = "GET"
   url_template        = "/KBArticle/{id}"
 
   template_parameter {
     name        = "id"
     required    = true
-    type        = "string"
+    type        = "integer"
     description = "Halo ITSM knowledge base article ID"
+  }
+
+  request {
+    query_parameter {
+      name        = "includedetails"
+      required    = false
+      type        = "boolean"
+      description = "Set to true to include the full article body and all associated detail objects. Always pass true when retrieving an article for display."
+    }
   }
 
   response {

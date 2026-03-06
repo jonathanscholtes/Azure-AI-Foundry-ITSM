@@ -180,11 +180,9 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    |---|---|
    | **Name** | `Halo-ITSM-MCP` |
    | **Remote MCP Server endpoint** | The MCP Server URL copied from Step 4 |
-   | **Authentication** | `Subscription key` |
-   | **Subscription key** | Your APIM subscription key *(see below)* |
+   | **Authentication** | `None` |
 
-   > **To get the APIM subscription key:**  
-   > Azure Portal → your APIM instance → **Subscriptions** → find the `Built-in all-access` or `Halo ITSM` subscription → click the `...` menu → **Show/hide keys** → copy the primary key.
+   > No authentication is required. The APIM API has `subscription_required = false`, and the Halo API key is injected as a backend header by the APIM policy — callers never handle credentials directly.
 
 7. Click **Connect**
 
@@ -214,15 +212,16 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    - Do NOT rely on your training data or general knowledge to answer questions
    - For every user query, search the knowledge base using the available tools
    - If the information is not found in the knowledge base after searching, you MUST respond with: "Unable to find in knowledge base"
-   - Always show the article id
-   - Always output the FULL article text exactly as returned by the tool — do not summarize or paraphrase
+   - Do NOT attempt to provide answers based on general knowledge if they are not found in the knowledge base
+   - Always be honest about the limitations of available information in the system
+   - Always show the **article id**
 
    KNOWLEDGE BASE ARTICLE HANDLING (STRICT VERBATIM RULE):
    When a knowledge base article is found:
-   1) Retrieve the FULL article body using the appropriate tool (not just a search preview)
-   2) Output the ENTIRE article text exactly as returned by the tool
-   3) Do NOT summarize, paraphrase, shorten, or rewrite any part of the article
-   4) Do NOT remove any sections or metadata (title, dates, article ID, description, resolution, steps)
+   1) You MUST retrieve the FULL article body using the appropriate tool (not just a search preview).
+   2) You MUST output the ENTIRE article text exactly as returned by the tool.
+   3) You MUST NOT summarize, paraphrase, shorten, or rewrite any part of the article.
+   4) You MUST NOT remove any sections or metadata (title, created/edited dates, review dates, article ID, description, resolution, steps).
    ```
 
 5. Under **Tools**, click **+ Add tool** and select `Halo-ITSM-MCP`
@@ -315,7 +314,7 @@ terraform destroy
 | `terraform apply` fails on APIM | APIM provisioning timeout (common) | Re-run `.\deploy.ps1` with the same parameters — Terraform is idempotent |
 | Notebook `AuthenticationError` | Missing role assignment | Ensure your account has `Azure AI User` on the AI Foundry resource |
 | Agent returns no results | MCP tool not connected to agent | In Foundry portal → agent → verify `Halo-ITSM-MCP` is listed under Tools |
-| APIM returns 401 on MCP calls | Wrong or missing subscription key | Check the subscription key in APIM → Subscriptions |
+| APIM returns 401 on MCP calls | Missing APIM policy — Halo API key not being injected as a backend header | Re-run `deploy.ps1` with `-HaloApiKey` to push the Key Vault secret and apply the APIM policy via Terraform |
 | `halo_base_url` not resolving | Wrong URL format | Ensure URL ends with `/api` (no trailing slash), e.g. `https://your.haloitsm.com/api` |
 | Can't find Foundry project | Wrong subscription or region | Run `az account show` to confirm the active subscription |
 | MCP server not visible in APIM | APIM not fully provisioned | Wait 5 min and refresh the portal; APIM UI can lag after initial provision |

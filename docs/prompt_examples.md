@@ -6,8 +6,8 @@ The agent has access to two MCP tools backed by the Halo ITSM knowledge base:
 
 | Tool | What it does |
 |---|---|
-| `knowledgebase` (GET /KBArticle) | Search and list knowledge base articles by keyword |
-| `knowledgebasebyid` (GET /KBArticle/{id}) | Retrieve the full text of a specific article by ID |
+| `knowledgebase` (GET /KBArticle) | Search knowledge base articles by keyword using the `search` parameter |
+| `knowledgebasebyid` (GET /KBArticle/{id}) | Retrieve the full text of a specific article by ID (use `includedetails=true`) |
 
 The agent is instructed to **only** answer from knowledge base content — it will not use general knowledge or training data.
 
@@ -139,14 +139,14 @@ Can you write me a Python script to sort a list?
 What is the weather like today?
 ```
 
-> **Expected agent response:** *"Unable to find in knowledge base."*  
+> **Expected agent response:** *"No Knowledgebase material available."*  
 > The agent will search the KB first, find no matching article, and refuse to answer from general knowledge — this is correct, grounded behaviour.
 
 ---
 
 ## 💡 Tips for the Workshop
 
-- Start with a **natural language query** — the agent will call `knowledgebase` to search, then `knowledgebasebyid` to fetch the full article
+- Start with a **natural language query** — the agent will call `knowledgebase` with a `search` keyword, then `knowledgebasebyid` with `includedetails=true` to fetch the full article
 - The agent returns the **full verbatim article text** — it does not summarize
 - If a search returns multiple results, ask the agent to retrieve a specific one by ID
 - Try rephrasing a query if the first search returns no results (e.g., "password reset" vs "reset my password")

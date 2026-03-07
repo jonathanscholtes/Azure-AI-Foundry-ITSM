@@ -68,7 +68,22 @@ function New-TerraformVarsFile {
         }
         
         $resourceToken = Get-ResourceToken -SubscriptionId $SubscriptionId
-        $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+        
+        # Only generate a new timestamp if terraform.tfvars does not already exist.
+        # This prevents the CreatedAt tag from changing on every run, which would
+        # trigger unnecessary update-in-place operations on all resources.
+        $tfvarsPath = Join-Path -Path $absolutePath -ChildPath "terraform.tfvars"
+        if (Test-Path $tfvarsPath) {
+            $existingContent = Get-Content -Path $tfvarsPath -Raw
+            if ($existingContent -match 'CreatedAt\s*=\s*"([^"]+)"') {
+                $timestamp = $Matches[1]
+                Write-Info "Preserving existing CreatedAt timestamp: $timestamp"
+            } else {
+                $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+            }
+        } else {
+            $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+        }
         
         # Load template
         $templatePath = Join-Path $PSScriptRoot "../infra/terraform.tfvars.tpl"
@@ -286,8 +301,26 @@ switch ($Action.ToLower()) {
         terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        terraform plan -out=tfplan
-        if ($LASTEXITCODE -ne 0) { exit 1 }
+        # Initial plan — retry because APIM Developer SKU management endpoint can
+        # return 401/422 transiently during or after platform maintenance.
+        $planAttempt = 0
+        $planSuccess = $false
+        while ($planAttempt -lt 3 -and -not $planSuccess) {
+            $planAttempt++
+            Write-Info "Generating execution plan (attempt $planAttempt)..."
+            az account get-access-token --output none 2>$null
+            terraform plan -out=tfplan
+            if ($LASTEXITCODE -eq 0) {
+                $planSuccess = $true
+            } elseif ($planAttempt -lt 3) {
+                Write-Host "Plan attempt $planAttempt failed. Waiting 90 seconds for APIM endpoint to stabilize..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 90
+            }
+        }
+        if (-not $planSuccess) {
+            Write-Error "Plan creation failed after 3 attempts"
+            exit 1
+        }
         
         Write-Warning "This will create/modify Azure resources"
         Write-Host "Applying infrastructure changes..." -ForegroundColor Cyan
@@ -300,12 +333,28 @@ switch ($Action.ToLower()) {
         while ($retryCount -lt $maxRetries -and -not $applySuccess) {
             $retryCount++
             
-            # Re-generate plan before each attempt (plan is consumed/invalidated after apply)
             if ($retryCount -gt 1) {
+                # Refresh the Azure CLI token — it may have expired during a long APIM provisioning
+                Write-Info "Refreshing Azure CLI token before retry..."
+                az account get-access-token --output none 2>$null
+                
+                # Re-plan with -refresh=false to avoid hitting the APIM management endpoint
+                # which may still be returning 401/422 during Developer SKU platform upgrades.
                 Write-Info "Re-planning before retry..."
-                terraform plan -out=tfplan
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Error "Failed to re-plan before retry attempt $retryCount"
+                $planAttempt = 0
+                $planSuccess = $false
+                while ($planAttempt -lt 3 -and -not $planSuccess) {
+                    $planAttempt++
+                    terraform plan -refresh=false -out=tfplan
+                    if ($LASTEXITCODE -eq 0) {
+                        $planSuccess = $true
+                    } elseif ($planAttempt -lt 3) {
+                        Write-Host "Re-plan attempt $planAttempt failed. Waiting 90 seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds 90
+                    }
+                }
+                if (-not $planSuccess) {
+                    Write-Error "Failed to re-plan before retry attempt $retryCount after 3 plan attempts"
                     exit 1
                 }
             }
@@ -320,8 +369,8 @@ switch ($Action.ToLower()) {
                 terraform output
             } else {
                 if ($retryCount -lt $maxRetries) {
-                    Write-Host "Deployment attempt $retryCount failed. Waiting 30 seconds before retry..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds 30
+                    Write-Host "Deployment attempt $retryCount failed. Waiting 120 seconds before retry..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 120
                 } else {
                     Write-Error "Deployment failed after $maxRetries attempts"
                     exit 1
@@ -342,10 +391,26 @@ switch ($Action.ToLower()) {
         terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        # Plan
-        Write-Info "Step 3/4: Planning..."
-        terraform plan -out=tfplan
-        if ($LASTEXITCODE -ne 0) { exit 1 }
+        # Plan — retry because APIM Developer SKU management endpoint can
+        # return 401/422 transiently during or after platform maintenance.
+        $planAttempt = 0
+        $planSuccess = $false
+        while ($planAttempt -lt 3 -and -not $planSuccess) {
+            $planAttempt++
+            Write-Info "Step 3/4: Planning (attempt $planAttempt)..."
+            az account get-access-token --output none 2>$null
+            terraform plan -out=tfplan
+            if ($LASTEXITCODE -eq 0) {
+                $planSuccess = $true
+            } elseif ($planAttempt -lt 3) {
+                Write-Host "Plan attempt $planAttempt failed. Waiting 90 seconds for APIM endpoint to stabilize..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 90
+            }
+        }
+        if (-not $planSuccess) {
+            Write-Error "Plan creation failed after 3 attempts"
+            exit 1
+        }
         
         # Apply with retries
         Write-Warning "Step 4/4: Applying infrastructure changes..."
@@ -358,12 +423,28 @@ switch ($Action.ToLower()) {
         while ($retryCount -lt $maxRetries -and -not $applySuccess) {
             $retryCount++
             
-            # Re-generate plan before each attempt (plan is consumed/invalidated after apply)
             if ($retryCount -gt 1) {
+                # Refresh the Azure CLI token — it may have expired during a long APIM provisioning
+                Write-Info "Refreshing Azure CLI token before retry..."
+                az account get-access-token --output none 2>$null
+                
+                # Re-plan with -refresh=false to avoid hitting the APIM management endpoint
+                # which may still be returning 401/422 during Developer SKU platform upgrades.
                 Write-Info "Re-planning before retry..."
-                terraform plan -out=tfplan
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Error "Failed to re-plan before retry attempt $retryCount"
+                $planAttempt = 0
+                $planSuccess = $false
+                while ($planAttempt -lt 3 -and -not $planSuccess) {
+                    $planAttempt++
+                    terraform plan -refresh=false -out=tfplan
+                    if ($LASTEXITCODE -eq 0) {
+                        $planSuccess = $true
+                    } elseif ($planAttempt -lt 3) {
+                        Write-Host "Re-plan attempt $planAttempt failed. Waiting 90 seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds 90
+                    }
+                }
+                if (-not $planSuccess) {
+                    Write-Error "Failed to re-plan before retry attempt $retryCount after 3 plan attempts"
                     exit 1
                 }
             }
@@ -378,8 +459,8 @@ switch ($Action.ToLower()) {
                 terraform output
             } else {
                 if ($retryCount -lt $maxRetries) {
-                    Write-Host "Deployment attempt $retryCount failed. Waiting 30 seconds before retry..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds 30
+                    Write-Host "Deployment attempt $retryCount failed. Waiting 120 seconds before retry..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 120
                 } else {
                     Write-Error "Deployment failed after $maxRetries attempts"
                     exit 1

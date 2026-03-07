@@ -33,6 +33,10 @@ resource "azurerm_api_management" "main" {
     delete = "60m"
     update = "120m"
   }
+
+  lifecycle {
+    ignore_changes = [tags["CreatedAt"]]
+  }
 }
 
 # ================================================

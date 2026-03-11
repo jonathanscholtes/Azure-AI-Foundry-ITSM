@@ -19,7 +19,7 @@ param (
     [string]$HaloBaseUrl
 )
 
-# PowerShell 5.1 compatibility — $IsWindows/$IsMacOS/$IsLinux are only automatic in PS 7+
+# PowerShell 5.1 compatibility - $IsWindows/$IsMacOS/$IsLinux are only automatic in PS 7+
 if (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue)) {
     $IsWindows = $true   # Windows PowerShell 5.1 only runs on Windows
     $IsMacOS   = $false
@@ -69,22 +69,6 @@ function New-TerraformVarsFile {
         
         $resourceToken = Get-ResourceToken -SubscriptionId $SubscriptionId
         
-        # Only generate a new timestamp if terraform.tfvars does not already exist.
-        # This prevents the CreatedAt tag from changing on every run, which would
-        # trigger unnecessary update-in-place operations on all resources.
-        $tfvarsPath = Join-Path -Path $absolutePath -ChildPath "terraform.tfvars"
-        if (Test-Path $tfvarsPath) {
-            $existingContent = Get-Content -Path $tfvarsPath -Raw
-            if ($existingContent -match 'CreatedAt\s*=\s*"([^"]+)"') {
-                $timestamp = $Matches[1]
-                Write-Info "Preserving existing CreatedAt timestamp: $timestamp"
-            } else {
-                $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
-            }
-        } else {
-            $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
-        }
-        
         # Load template
         $templatePath = Join-Path $PSScriptRoot "../infra/terraform.tfvars.tpl"
         if (-not (Test-Path $templatePath)) {
@@ -100,7 +84,6 @@ function New-TerraformVarsFile {
         $content = $content -replace '\$\{Location\}', $Location
         $content = $content -replace '\$\{Environment\}', $Environment
         $content = $content -replace '\$\{ResourceToken\}', $resourceToken
-        $content = $content -replace '\$\{Timestamp\}', $timestamp
         $content = $content -replace '\$\{HaloBaseUrl\}', $HaloBaseUrl
         
         $tfvarsPath = Join-Path -Path $absolutePath -ChildPath "terraform.tfvars"
@@ -176,6 +159,63 @@ function Initialize-Terraform {
     }
 }
 
+function Invoke-TerraformApplyWithRetry {
+    param(
+        [string]$SuccessMessage = "Deployment applied successfully",
+        [int]$MaxRetries = 3
+    )
+
+    $retryCount = 0
+    $applySuccess = $false
+
+    while ($retryCount -lt $MaxRetries -and -not $applySuccess) {
+        $retryCount++
+        Write-Host ""
+        Write-Host "Applying... (Attempt $retryCount of $MaxRetries)" -ForegroundColor Yellow
+
+        # Re-plan on retries to avoid "Saved plan is stale" error.
+        # Use -refresh=false to skip the APIM management-plane state refresh —
+        # the Developer SKU endpoint returns 422 during platform upgrades.
+        if ($retryCount -gt 1) {
+            Write-Info "Refreshing Azure CLI token before retry..."
+            az account get-access-token --output none 2>$null
+
+            Write-Info "Re-planning with -refresh=false (skips APIM endpoint)..."
+            $planAttempt = 0
+            $planOk = $false
+            while ($planAttempt -lt 3 -and -not $planOk) {
+                $planAttempt++
+                terraform plan -refresh=false -out=tfplan
+                if ($LASTEXITCODE -eq 0) {
+                    $planOk = $true
+                } elseif ($planAttempt -lt 3) {
+                    Write-Host "Re-plan attempt $planAttempt failed. Waiting 90 seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 90
+                }
+            }
+            if (-not $planOk) {
+                Write-Host "Re-plan failed after 3 attempts" -ForegroundColor Red
+                exit 1
+            }
+        }
+
+        terraform apply tfplan
+        if ($LASTEXITCODE -eq 0) {
+            $applySuccess = $true
+            Write-Success $SuccessMessage
+            terraform output
+        } else {
+            if ($retryCount -lt $MaxRetries) {
+                Write-Host "Deployment attempt $retryCount failed. Waiting 120 seconds before retry..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 120
+            } else {
+                Write-Host "Deployment failed after $MaxRetries attempts" -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
+}
+
 # Main execution
 Write-Title "Microsoft Foundry ITSM - Infrastructure Deployment"
 
@@ -191,6 +231,9 @@ if ($Action -eq "destroy") {
     $infraDir = Join-Path $PSScriptRoot "../infra"
     Set-Location -Path $infraDir
 
+    # Resolve subscription ID for fallback RG deletion
+    $subscriptionId = az account show --query id -o tsv 2>$null
+
     Write-Title "Destroying Resources"
     Write-Host "WARNING: All resources created by Terraform will be permanently deleted!" -ForegroundColor Red
 
@@ -201,26 +244,94 @@ if ($Action -eq "destroy") {
         exit 0
     }
 
+    # Retry plan-destroy because APIM management endpoint can return 422/500
+    # during platform upgrades.
     Write-Info "Generating destruction plan..."
     Write-Host ""
-    terraform plan -destroy
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Failed to generate destruction plan" -ForegroundColor Red
+    $planAttempt = 0
+    $planSuccess = $false
+    while ($planAttempt -lt 5 -and -not $planSuccess) {
+        $planAttempt++
+        Write-Host "Destruction plan attempt $planAttempt of 5..." -ForegroundColor Yellow
+        az account get-access-token --output none 2>$null
+        terraform plan -destroy
+        if ($LASTEXITCODE -eq 0) {
+            $planSuccess = $true
+        } elseif ($planAttempt -lt 5) {
+            $waitSeconds = 60 * $planAttempt
+            Write-Host "Destruction plan attempt $planAttempt failed (APIM endpoint may be down). Waiting $waitSeconds seconds..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $waitSeconds
+        }
+    }
+    if (-not $planSuccess) {
+        Write-Host "ERROR: Failed to generate destruction plan after 5 attempts" -ForegroundColor Red
         exit 1
     }
 
     Write-Host ""
     Write-Info "Destroying infrastructure..."
-    terraform destroy -auto-approve
 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Resources destroyed successfully"
-        exit 0
-    } else {
-        Write-Host "ERROR: Destruction failed" -ForegroundColor Red
-        exit 1
+    $maxDestroyRetries = 3
+    $destroyCount = 0
+    $destroySuccess = $false
+
+    while ($destroyCount -lt $maxDestroyRetries -and -not $destroySuccess) {
+        $destroyCount++
+        Write-Host "Destroy attempt $destroyCount of $maxDestroyRetries..." -ForegroundColor Yellow
+
+        terraform destroy -auto-approve
+
+        if ($LASTEXITCODE -eq 0) {
+            $destroySuccess = $true
+            Write-Success "Resources destroyed successfully"
+        } elseif ($destroyCount -lt $maxDestroyRetries) {
+            $waitSeconds = 60 * $destroyCount
+            Write-Host "Destroy attempt $destroyCount failed (APIM management endpoint may be down). Waiting $waitSeconds seconds before retry..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $waitSeconds
+            az account get-access-token --output none 2>$null
+        }
     }
+
+    if (-not $destroySuccess) {
+        Write-Host ""
+        Write-Host "Terraform destroy failed after $maxDestroyRetries attempts." -ForegroundColor Yellow
+        Write-Host "Falling back: removing APIM resources from state and deleting the resource group directly." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Remove all APIM resources from Terraform state so the next destroy
+        # does not attempt to call the broken management-plane delete endpoint.
+        $apimStateResources = & { $ErrorActionPreference = 'SilentlyContinue'; terraform state list 2>&1 } |
+            Where-Object { $_ -is [string] -and $_ -match 'apim' }
+        foreach ($res in $apimStateResources) {
+            Write-Host "  Removing from state: $res" -ForegroundColor Gray
+            & { $ErrorActionPreference = 'SilentlyContinue'; terraform state rm $res 2>&1 } | Out-Null
+        }
+
+        # Delete the resource group directly - ARM cascade-deletes all child
+        # resources including APIM without going through the management endpoint.
+        $resourceToken = Get-ResourceToken -SubscriptionId $subscriptionId
+        $resourceGroupName = "rg-aifoundry-$Environment-$resourceToken"
+        Write-Host ""
+        Write-Host "Deleting resource group '$resourceGroupName' (this may take 10-20 minutes)..." -ForegroundColor Yellow
+        az group delete --name $resourceGroupName --yes
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Resource group deletion failed." -ForegroundColor Red
+            Write-Host "Delete '$resourceGroupName' manually in the Azure Portal, then re-run -Destroy to clean Terraform state." -ForegroundColor Red
+            exit 1
+        }
+
+        # Final terraform destroy: all Azure resources are gone, so Terraform
+        # will see 404s, mark everything as destroyed, and clean the state file.
+        Write-Host ""
+        Write-Host "Flushing remaining Terraform state entries..." -ForegroundColor Yellow
+        & { $ErrorActionPreference = 'SilentlyContinue'; terraform destroy -auto-approve 2>&1 } |
+            ForEach-Object { Write-Host $_ }
+
+        Write-Success "Resources destroyed via resource group deletion fallback"
+    }
+
+    exit 0
 }
 
 # Get subscription ID (auth already set by orchestrator's Initialize-AzureContext)
@@ -233,7 +344,7 @@ if ($Action -in @("init", "plan", "apply", "all", "validate")) {
     }
 }
 
-# Change to infra directory
+# Change to infra directory (restore on exit via finally block)
 $infraDir = Join-Path $PSScriptRoot "../infra"
 Write-Info "Changing to infrastructure directory: $infraDir"
 if (-not (Test-Path $infraDir)) {
@@ -241,7 +352,9 @@ if (-not (Test-Path $infraDir)) {
     exit 1
 }
 
-Set-Location -Path $infraDir
+Push-Location -Path $infraDir
+
+try {
 
 # Generate terraform.tfvars now that we're in the infra directory
 if ($Action -in @("init", "plan", "apply", "all", "validate")) {
@@ -285,24 +398,8 @@ switch ($Action.ToLower()) {
         terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        Write-Info "Generating execution plan..."
-        terraform plan -out=tfplan
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Plan creation failed"
-            exit 1
-        }
-        Write-Success "Plan created successfully"
-    }
-    "apply" {
-        Write-Title "Applying Terraform Configuration"
-        Initialize-Terraform
-        if ($LASTEXITCODE -ne 0) { exit 1 }
-        
-        terraform validate
-        if ($LASTEXITCODE -ne 0) { exit 1 }
-        
-        # Initial plan — retry because APIM Developer SKU management endpoint can
-        # return 401/422 transiently during or after platform maintenance.
+        # Plan — retry because APIM Developer SKU management endpoint can
+        # return 422 transiently during or after platform maintenance.
         $planAttempt = 0
         $planSuccess = $false
         while ($planAttempt -lt 3 -and -not $planSuccess) {
@@ -318,65 +415,44 @@ switch ($Action.ToLower()) {
             }
         }
         if (-not $planSuccess) {
-            Write-Error "Plan creation failed after 3 attempts"
+            Write-Host "Plan creation failed after 3 attempts" -ForegroundColor Red
+            exit 1
+        }
+        Write-Success "Plan created successfully"
+    }
+    "apply" {
+        Write-Title "Applying Terraform Configuration"
+        Initialize-Terraform
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        
+        terraform validate
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        
+        # Plan — retry because APIM Developer SKU management endpoint can
+        # return 422 transiently during or after platform maintenance.
+        $planAttempt = 0
+        $planSuccess = $false
+        while ($planAttempt -lt 3 -and -not $planSuccess) {
+            $planAttempt++
+            Write-Info "Generating execution plan (attempt $planAttempt)..."
+            az account get-access-token --output none 2>$null
+            terraform plan -out=tfplan
+            if ($LASTEXITCODE -eq 0) {
+                $planSuccess = $true
+            } elseif ($planAttempt -lt 3) {
+                Write-Host "Plan attempt $planAttempt failed. Waiting 90 seconds for APIM endpoint to stabilize..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 90
+            }
+        }
+        if (-not $planSuccess) {
+            Write-Host "Plan creation failed after 3 attempts" -ForegroundColor Red
             exit 1
         }
         
         Write-Warning "This will create/modify Azure resources"
         Write-Host "Applying infrastructure changes..." -ForegroundColor Cyan
-        Write-Host "This may take 15-30 minutes (APIM deployment is slow)..." -ForegroundColor Cyan
-        
-        $maxRetries = 3
-        $retryCount = 0
-        $applySuccess = $false
-        
-        while ($retryCount -lt $maxRetries -and -not $applySuccess) {
-            $retryCount++
-            
-            if ($retryCount -gt 1) {
-                # Refresh the Azure CLI token — it may have expired during a long APIM provisioning
-                Write-Info "Refreshing Azure CLI token before retry..."
-                az account get-access-token --output none 2>$null
-                
-                # Re-plan with -refresh=false to avoid hitting the APIM management endpoint
-                # which may still be returning 401/422 during Developer SKU platform upgrades.
-                Write-Info "Re-planning before retry..."
-                $planAttempt = 0
-                $planSuccess = $false
-                while ($planAttempt -lt 3 -and -not $planSuccess) {
-                    $planAttempt++
-                    terraform plan -refresh=false -out=tfplan
-                    if ($LASTEXITCODE -eq 0) {
-                        $planSuccess = $true
-                    } elseif ($planAttempt -lt 3) {
-                        Write-Host "Re-plan attempt $planAttempt failed. Waiting 90 seconds..." -ForegroundColor Yellow
-                        Start-Sleep -Seconds 90
-                    }
-                }
-                if (-not $planSuccess) {
-                    Write-Error "Failed to re-plan before retry attempt $retryCount after 3 plan attempts"
-                    exit 1
-                }
-            }
-            
-            Write-Host ""
-            Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
-            
-            terraform apply tfplan
-            if ($LASTEXITCODE -eq 0) {
-                $applySuccess = $true
-                Write-Success "Deployment applied successfully"
-                terraform output
-            } else {
-                if ($retryCount -lt $maxRetries) {
-                    Write-Host "Deployment attempt $retryCount failed. Waiting 120 seconds before retry..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds 120
-                } else {
-                    Write-Error "Deployment failed after $maxRetries attempts"
-                    exit 1
-                }
-            }
-        }
+        Write-Host "This may take up to 90 minutes (APIM Developer SKU is slow to provision)..." -ForegroundColor Cyan
+        Invoke-TerraformApplyWithRetry -SuccessMessage "Deployment applied successfully"
     }
     "all" {
         Write-Title "Full Terraform Deployment"
@@ -392,7 +468,7 @@ switch ($Action.ToLower()) {
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         # Plan — retry because APIM Developer SKU management endpoint can
-        # return 401/422 transiently during or after platform maintenance.
+        # return 422 transiently during or after platform maintenance.
         $planAttempt = 0
         $planSuccess = $false
         while ($planAttempt -lt 3 -and -not $planSuccess) {
@@ -408,65 +484,14 @@ switch ($Action.ToLower()) {
             }
         }
         if (-not $planSuccess) {
-            Write-Error "Plan creation failed after 3 attempts"
+            Write-Host "Plan creation failed after 3 attempts" -ForegroundColor Red
             exit 1
         }
         
-        # Apply with retries
+        # Apply with retry for token expiry during long APIM provisioning
         Write-Warning "Step 4/4: Applying infrastructure changes..."
-        Write-Host "This may take 15-30 minutes (APIM deployment is slow)..." -ForegroundColor Cyan
-        
-        $maxRetries = 3
-        $retryCount = 0
-        $applySuccess = $false
-        
-        while ($retryCount -lt $maxRetries -and -not $applySuccess) {
-            $retryCount++
-            
-            if ($retryCount -gt 1) {
-                # Refresh the Azure CLI token — it may have expired during a long APIM provisioning
-                Write-Info "Refreshing Azure CLI token before retry..."
-                az account get-access-token --output none 2>$null
-                
-                # Re-plan with -refresh=false to avoid hitting the APIM management endpoint
-                # which may still be returning 401/422 during Developer SKU platform upgrades.
-                Write-Info "Re-planning before retry..."
-                $planAttempt = 0
-                $planSuccess = $false
-                while ($planAttempt -lt 3 -and -not $planSuccess) {
-                    $planAttempt++
-                    terraform plan -refresh=false -out=tfplan
-                    if ($LASTEXITCODE -eq 0) {
-                        $planSuccess = $true
-                    } elseif ($planAttempt -lt 3) {
-                        Write-Host "Re-plan attempt $planAttempt failed. Waiting 90 seconds..." -ForegroundColor Yellow
-                        Start-Sleep -Seconds 90
-                    }
-                }
-                if (-not $planSuccess) {
-                    Write-Error "Failed to re-plan before retry attempt $retryCount after 3 plan attempts"
-                    exit 1
-                }
-            }
-            
-            Write-Host ""
-            Write-Host "Applying... (Attempt $retryCount of $maxRetries)" -ForegroundColor Yellow
-            
-            terraform apply tfplan
-            if ($LASTEXITCODE -eq 0) {
-                $applySuccess = $true
-                Write-Success "Full deployment completed successfully"
-                terraform output
-            } else {
-                if ($retryCount -lt $maxRetries) {
-                    Write-Host "Deployment attempt $retryCount failed. Waiting 120 seconds before retry..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds 120
-                } else {
-                    Write-Error "Deployment failed after $maxRetries attempts"
-                    exit 1
-                }
-            }
-        }
+        Write-Host "This may take up to 90 minutes (APIM Developer SKU is slow to provision)..." -ForegroundColor Cyan
+        Invoke-TerraformApplyWithRetry -SuccessMessage "Full deployment completed successfully"
     }
     "output" {
         Write-Title "Deployment Outputs"
@@ -502,6 +527,10 @@ switch ($Action.ToLower()) {
         Write-Error "Unknown action: $Action"
         exit 1
     }
+}
+
+} finally {
+    Pop-Location
 }
 
 Write-Success "Action '$Action' completed successfully"

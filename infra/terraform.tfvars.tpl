@@ -28,5 +28,4 @@ tags = {
   Environment = "${Environment}"
   Project     = "AI-Foundry-ITSM"
   ManagedBy   = "Terraform"
-  CreatedAt   = "${Timestamp}"
 }

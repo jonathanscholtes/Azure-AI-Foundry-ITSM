@@ -125,7 +125,7 @@ function Get-ResourceToken {
     param (
         [Parameter(Mandatory=$true)]
         [string]$SubscriptionId,
-        [int]$Length = 8
+        [int]$Length = 7
     )
     
     $base36Chars = "abcdefghijklmnopqrstuvwxyz123456789"

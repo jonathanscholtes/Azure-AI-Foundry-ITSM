@@ -25,10 +25,10 @@ output "portal_url" {
 
 output "halo_http_api_id" {
   description = "ID of the Halo HTTP API"
-  value       = azurerm_api_management_api.halo_http.id
+  value       = azapi_resource.halo_http_api.id
 }
 
 output "kb_tag_id" {
   description = "ID of the KB tag"
-  value       = azurerm_api_management_tag.kb.id
+  value       = azapi_resource.kb_tag.id
 }

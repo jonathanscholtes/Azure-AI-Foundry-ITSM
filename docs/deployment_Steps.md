@@ -155,7 +155,7 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
 
    The URL format is:
    ```
-   https://<apim-name>.azure-api.net/<mcp-server-path>/sse
+   https://<apim-name>.azure-api.net/<mcp-server-path>/mcp
    ```
    Save this URL — you will need it in Step 5 and Step 7.
 

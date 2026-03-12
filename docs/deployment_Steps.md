@@ -161,40 +161,18 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
 
 ---
 
-## Step 5 — Register the MCP Tool in Microsoft Foundry
+## Step 5 — Create the Foundry Agent
 
 1. Open the **[Microsoft Foundry portal](https://ai.azure.com/)** and sign in
 
-2. Select your **AI Foundry project**  
+2. Select your **Foundry project**  
    *(Navigate to your subscription → resource group → AI Services account → open in Foundry, or find it directly on the Foundry home page)*
 
-3. In the left menu, go to **Build → Tools**
+3. In the left menu, go to **Build → Agents**
 
-4. Click **+ Connect a Tool**
+4. Click **+ New agent** → **From scratch**
 
-5. Choose **Custom → Model Context Protocol (MCP)**
-
-6. Click **Create** and fill in the form:
-
-   | Field | Value |
-   |---|---|
-   | **Name** | `Halo-ITSM-MCP` |
-   | **Remote MCP Server endpoint** | The MCP Server URL copied from Step 4 |
-   | **Authentication** | `None` |
-
-   > No authentication is required. The APIM API has `subscription_required = false`, and the Halo API key is injected as a backend header by the APIM policy — callers never handle credentials directly.
-
-7. Click **Connect**
-
----
-
-## Step 6 — Create the Foundry Agent
-
-1. In the Foundry portal, go to **Build → Agents**
-
-2. Click **+ New agent** → **From scratch**
-
-3. Configure the agent:
+5. Configure the agent:
 
    | Field | Value |
    |---|---|
@@ -202,7 +180,7 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    | **Model** | `gpt-4.1` |
    | **Description** | `An AI-powered service desk assistant that retrieves IT support answers from the Halo ITSM knowledge base.` |
 
-4. In the **Instructions** (System Prompt) field, paste the following:
+6. In the **Instructions** (System Prompt) field, paste the following:
 
    ```
    You are ServiceDeskAssistant, an intelligent IT service desk support agent. Your primary role is to help users with IT support requests, incident management, and knowledge base queries.
@@ -224,30 +202,49 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    4) You MUST NOT remove any sections or metadata (title, created/edited dates, review dates, article ID, description, resolution, steps).
    ```
 
-5. Under **Tools**, click **+ Add tool** and select `Halo-ITSM-MCP`
+7. Under **Tools**, click **Add**
 
-6. Click **Create** to save the agent
+8. Choose **Custom** --> **Model Context Protocol (MCP)**
 
-7. Test the agent in the **Playground** with a sample query:
-   - *"How do I reset my password?"*
-   - *"My laptop charger is damaged, how do I get a replacement?"*
-   - *"How do I set up VPN to work from home?"*
+9. Fill in the connection form:
 
-   > See [prompt_examples.md](prompt_examples.md) for a full set of categorised test prompts, including out-of-scope queries that demonstrate grounding behaviour.
+   | Field | Value |
+   |---|---|
+   | **Name** | `Halo-ITSM-MCP` |
+   | **Remote MCP Server endpoint** | The MCP Server URL copied from Step 4 |
+   | **Authentication** | `None` |
+
+   > No authentication is required. The Halo API key is injected as a backend header by the APIM policy — callers never handle credentials directly.
+
+10. Click **Add** to add the tool
+
+11. On the tool card for `Halo-ITSM-MCP`, click the **⋯** (three dots) menu and select **Configure**
+
+12. Set **Approval setting for tools in this MCP server for this agent** to **Always auto-approve all tools**, then click **Add**
+
+13. Click **Create** to save the agent
+
+14. Test the agent in the **Playground** with a sample query:
+    - *"How do I reset my password?"*
+    - *"My laptop charger is damaged, how do I get a replacement?"*
+    - *"How do I set up VPN to work from home?"*
+
+    > See [prompt_examples.md](prompt_examples.md) for a full set of categorised test prompts, including out-of-scope queries that demonstrate grounding behaviour.
 
 ---
 
-## Step 7 — Set Up the Notebook (Optional — SDK Demo)
+## Step 6 — Set Up the Notebook (Optional — SDK Demo)
 
 The notebook (`Notebooks/01_azure_ai_agent-mcp.ipynb`) demonstrates creating and running the agent programmatically via the Azure AI Projects SDK.
 
-### 7a — Create the `.env` file
+### 6a — Create the `.env` file
 
 ```bash
 cp Notebooks/.env.sample Notebooks/.env
 ```
 
 Edit `Notebooks/.env` with the values from Step 3 and Step 4:
+
 
 ```env
 # AI Foundry project endpoint
@@ -265,14 +262,14 @@ MCP_SERVER_URL=https://<apim-name>.azure-api.net/<mcp-path>/mcp
 MCP_SERVER_LABEL=halo-itsm-mcp
 ```
 
-### 7b — Install Python dependencies
+### 6b — Install Python dependencies
 
 ```bash
 cd Notebooks
 pip install -r requirements.txt
 ```
 
-### 7c — Authenticate and run
+### 6c — Authenticate and run
 
 Ensure you are logged in with an account that has the `Azure AI User` role on the Foundry project:
 
@@ -284,7 +281,7 @@ Open `01_azure_ai_agent-mcp.ipynb` in VS Code or Jupyter and run cells in order.
 
 ---
 
-## Step 8 — Clean Up
+## Step 7 — Clean Up
 
 When finished, destroy all Azure resources to avoid ongoing charges:
 

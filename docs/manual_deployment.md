@@ -22,7 +22,7 @@ This document describes every Azure resource in the solution, its exact configur
 14. [Role Assignments Summary](#14-role-assignments-summary)
 15. [Post-Deployment: Push Halo API Key to Key Vault](#15-post-deployment-push-halo-api-key-to-key-vault)
 16. [Post-Deployment: Configure APIM Named Value](#16-post-deployment-configure-apim-named-value)
-17. [Post-Deployment: Create Foundry Agent via Notebook](#17-post-deployment-create-foundry-agent-via-notebook)
+17. [Post-Deployment: Create the Foundry Agent](#17-post-deployment-create-the-foundry-agent)
 18. [Naming Conventions](#18-naming-conventions)
 19. [Common Tags](#19-common-tags)
 
@@ -213,7 +213,7 @@ After creation, copy:
 | Region | East US 2 |
 | Publisher name | `AI Foundry ITSM` |
 | Publisher email | `admin@aifoundry.com` |
-| Pricing tier | **Developer** (for dev/test; use **Consumption** for serverless or **Standard/Premium** for production) |
+| Pricing tier | **Developer** (for dev/test; use  **Standard/Premium** for production) |
 | Capacity units | 1 |
 
 ### Managed Identity
@@ -387,7 +387,7 @@ Under **Identity**:
 | Parent account | *(account from step 10)* |
 | Identity | **System-assigned** (enabled at project level) |
 
-> Do **not** configure Application Insights in the project properties — this is done as a connection in [step 13](#13-azure-ai-foundry--project-connections).
+> If Application Insights is not configured in the project properties, it can be added as a connection in [step 13](#13-azure-ai-foundry--project-connections).
 
 After the project is created, navigate to **Project → Settings** and copy the **Project Principal ID** (system-assigned managed identity object ID) — needed for Search role assignments in [step 14](#14-role-assignments-summary).
 
@@ -426,21 +426,7 @@ Select **Application Insights** from the connection type picker, then configure:
 | Key / Credential | Application Insights **Instrumentation Key** |
 | Share to all agents in this project | **Yes** |
 
-### Alternative: Azure CLI
 
-If you prefer scripting over the portal:
-
-```bash
-# AI Search connection (AAD auth)
-az rest --method PUT \
-  --url "https://management.azure.com/subscriptions/<subscription-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>/connections/azure-ai-search?api-version=2025-06-01" \
-  --body '{"properties":{"category":"CognitiveSearch","target":"https://<search-name>.search.windows.net","authType":"AAD","isSharedToAll":true,"metadata":{"ApiType":"Azure","ResourceId":"<search-resource-id>"}}}'
-
-# Application Insights connection (ApiKey auth)
-az rest --method PUT \
-  --url "https://management.azure.com/subscriptions/<subscription-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>/connections/azure-app-insights?api-version=2025-06-01" \
-  --body '{"properties":{"category":"AppInsights","target":"<app-insights-resource-id>","authType":"ApiKey","isSharedToAll":true,"credentials":{"key":"<instrumentation-key>"},"metadata":{"ApiType":"Azure","ResourceId":"<app-insights-resource-id>"}}}'
-```
 
 ---
 
@@ -516,57 +502,12 @@ After saving the Named Value, apply the API policy from [step 9](#api-policy-app
 
 ---
 
-## 17. Post-Deployment: Create Foundry Agent via Notebook
+## 17. Post-Deployment: Create the Foundry Agent
 
-> This section covers creating the agent programmatically using the Azure AI SDK. To create the agent manually via the **Microsoft Foundry portal**, see [deployment_Steps.md — Step 6](deployment_Steps.md#step-6--create-the-foundry-agent) instead.
+Once all Azure resources are deployed, create and configure the **ServiceDeskAssistant** agent:
 
-The notebook `Notebooks/01_azure_ai_agent-mcp.ipynb` creates the **ServiceDeskAssistant** agent programmatically.
-
-### Environment Setup
-
-Create `Notebooks/.env` with the following values:
-
-```env
-PROJECT_ENDPOINT=https://<ai-account-name>.cognitiveservices.azure.com/
-MODEL_DEPLOYMENT_NAME=gpt-4.1
-MCP_SERVER_URL=<apim-gateway-url>/halo/mcp
-MCP_SERVER_LABEL=halo-itsm-mcp
-```
-
-- `PROJECT_ENDPOINT`: From AI Services account → Overview → Endpoint
-- `MCP_SERVER_URL`: From APIM → MCP Servers in Azure Portal
-
-### Agent Configuration
-
-The notebook creates an agent with the following settings:
-
-| Setting | Value |
-|---|---|
-| Agent name | `ServiceDeskAssistantSDK` |
-| Model | `gpt-4.1` |
-| Tool | MCPTool — `halo-itsm-mcp` pointing to APIM MCP server URL |
-| Approval | `never` (auto-approve all tool calls) |
-
-**System instructions summary:** The agent acts as `ServiceDeskAssistant`, an ITSM support agent. It must:
-- Only use Halo ITSM MCP tools to retrieve knowledge base data (no training-data fallback)
-- Return full article text verbatim — no summarizing or paraphrasing
-- Display article ID in all responses
-- Respond with `"Unable to find in knowledge base"` when no result is found
-
-### Install Python Dependencies
-
-```bash
-pip install -r Notebooks/requirements.txt
-```
-
-### Authentication
-
-The notebook uses `DefaultAzureCredential`. Ensure you are logged in:
-
-```bash
-az login
-az account set --subscription "<subscription-id>"
-```
+- **Via the Microsoft Foundry portal** (recommended): follow [deployment_Steps.md — Step 5](deployment_Steps.md#step-5--create-the-foundry-agent)
+- **Programmatically via the Azure AI SDK**: follow [deployment_Steps.md — Step 6](deployment_Steps.md#step-6--set-up-the-notebook-optional--sdk-demo)
 
 ---
 

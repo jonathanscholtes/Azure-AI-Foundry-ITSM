@@ -28,7 +28,7 @@ variable "storage_replication_type" {
 variable "storage_containers" {
   description = "List of storage container names"
   type        = list(string)
-  default     = ["load", "processed", "transcript"]
+  default     = ["load"]
 }
 
 variable "identity_principal_id" {

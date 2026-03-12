@@ -27,3 +27,8 @@ output "ai_project_name" {
   description = "Name of the AI Project"
   value       = var.ai_project_name
 }
+
+output "ai_project_principal_id" {
+  description = "System-assigned principal ID of the AI Project"
+  value       = azapi_resource.ai_project.identity[0].principal_id
+}

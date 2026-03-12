@@ -321,6 +321,27 @@ if ($Action -eq "destroy") {
             exit 1
         }
 
+        # Purge any soft-deleted APIM instances left behind by the resource group deletion.
+        # az group delete soft-deletes APIM rather than hard-deleting it, and Terraform's
+        # purge_soft_delete_on_destroy cannot act because APIM was already removed from state.
+        Write-Host ""
+        Write-Host "Purging soft-deleted APIM instances in $Location..." -ForegroundColor Yellow
+        $deletedApims = az rest --method get `
+            --url "https://management.azure.com/subscriptions/$subscriptionId/providers/Microsoft.ApiManagement/locations/$Location/deletedservices?api-version=2022-08-01" `
+            2>$null | ConvertFrom-Json
+        if ($deletedApims -and $deletedApims.value) {
+            foreach ($apim in $deletedApims.value) {
+                $apimName = $apim.name
+                Write-Host "  Purging APIM: $apimName" -ForegroundColor Gray
+                az rest --method delete `
+                    --url "https://management.azure.com/subscriptions/$subscriptionId/providers/Microsoft.ApiManagement/locations/$Location/deletedservices/$($apimName)?api-version=2022-08-01" `
+                    2>$null | Out-Null
+            }
+            Write-Host "  APIM purge requests submitted (purges complete asynchronously)" -ForegroundColor Gray
+        } else {
+            Write-Host "  No soft-deleted APIM instances found" -ForegroundColor Gray
+        }
+
         # Final terraform destroy: all Azure resources are gone, so Terraform
         # will see 404s, mark everything as destroyed, and clean the state file.
         Write-Host ""

@@ -44,3 +44,24 @@ variable "embedding_capacity" {
   type        = number
   default     = 120
 }
+
+variable "application_insights_id" {
+  description = "Resource ID of the Application Insights instance to link to the AI project"
+  type        = string
+}
+
+variable "search_endpoint" {
+  description = "Endpoint URL of the Azure AI Search service"
+  type        = string
+}
+
+variable "search_service_id" {
+  description = "Resource ID of the Azure AI Search service for connection metadata"
+  type        = string
+}
+
+variable "app_insights_instrumentation_key" {
+  description = "Instrumentation key of the Application Insights instance"
+  type        = string
+  sensitive   = true
+}

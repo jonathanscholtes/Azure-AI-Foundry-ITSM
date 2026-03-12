@@ -27,7 +27,7 @@ The **deploying user** (the account that runs `deploy.ps1`) requires:
 | **Owner** or **Contributor** on the target subscription | Terraform creates all resource groups and resources |
 | **User Access Administrator** on the subscription | Terraform assigns RBAC roles to the managed identity |
 
-**Workshop participants** (anyone using the Foundry portal or running the notebook) require:
+**Users** (anyone using the Foundry portal or running the notebook) require:
 
 | Role | Scope | How to assign |
 |---|---|---|
@@ -52,7 +52,7 @@ Your Halo base URL — e.g., `https://yourinstance.haloitsm.com`
 6. Save — Halo will display the generated **API Key**
 7. Copy this value — it is used as `-HaloApiKey` in the deploy command and stored in Azure Key Vault at deployment time
 
-> **For workshops:** Register a dedicated application before the workshop and delete it from Halo afterwards (**Configuration → Integrations → Halo API → Remove this Applications**). Participants never see or use this key directly — it is held in Key Vault and injected by APIM as a backend header.
+> Register a dedicated application and delete it from Halo when no longer needed (**Configuration → Integrations → Halo API → Remove this Applications**). Users never see or use this key directly — it is held in Key Vault and injected by APIM as a backend header.
 
 ---
 

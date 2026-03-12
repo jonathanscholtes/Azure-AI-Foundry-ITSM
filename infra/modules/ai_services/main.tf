@@ -10,7 +10,7 @@ terraform {
 
 
 resource "azapi_resource" "ai_account" {
-  type      = "Microsoft.CognitiveServices/accounts@2025-06-01"
+  type      = "Microsoft.CognitiveServices/accounts@2025-09-01"
   name      = var.ai_account_name
   location  = var.location
   parent_id = "/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}"
@@ -43,7 +43,7 @@ resource "azapi_resource" "ai_account" {
 }
 
 resource "azapi_resource" "gpt41_deployment" {
-  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-06-01"
+  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-09-01"
   name      = "gpt-4.1"
   parent_id = azapi_resource.ai_account.id
 
@@ -66,7 +66,7 @@ resource "azapi_resource" "gpt41_deployment" {
 }
 
 resource "azapi_resource" "embedding_deployment" {
-  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-06-01"
+  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-09-01"
   name      = "text-embedding-ada-002"
   parent_id = azapi_resource.ai_account.id
 
@@ -89,7 +89,7 @@ resource "azapi_resource" "embedding_deployment" {
 }
 
 resource "azapi_resource" "ai_project" {
-  type      = "Microsoft.CognitiveServices/accounts/projects@2025-06-01"
+  type      = "Microsoft.CognitiveServices/accounts/projects@2025-09-01"
   name      = var.ai_project_name
   location  = var.location
   parent_id = azapi_resource.ai_account.id
@@ -107,6 +107,51 @@ resource "azapi_resource" "ai_project" {
     azapi_resource.gpt41_deployment,
     azapi_resource.embedding_deployment
   ]
+}
+
+resource "azapi_resource" "search_connection" {
+  type      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-09-01"
+  name      = "azure-ai-search"
+  parent_id = azapi_resource.ai_project.id
+
+  body = {
+    properties = {
+      category      = "CognitiveSearch"
+      target        = var.search_endpoint
+      authType      = "AAD"
+      isSharedToAll = true
+      metadata = {
+        ApiType    = "Azure"
+        ResourceId = var.search_service_id
+      }
+    }
+  }
+
+  depends_on = [azapi_resource.ai_project]
+}
+
+resource "azapi_resource" "appinsights_connection" {
+  type      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-09-01"
+  name      = "azure-app-insights"
+  parent_id = azapi_resource.ai_project.id
+
+  body = {
+    properties = {
+      category          = "AppInsights"
+      authType          = "ApiKey"
+      target            = var.application_insights_id
+      isSharedToAll     = true
+      credentials = {
+        key = var.app_insights_instrumentation_key
+      }
+      metadata = {
+        ApiType    = "Azure"
+        ResourceId = var.application_insights_id
+      }
+    }
+  }
+
+  depends_on = [azapi_resource.ai_project]
 }
 
 resource "azurerm_role_assignment" "openai_user" {

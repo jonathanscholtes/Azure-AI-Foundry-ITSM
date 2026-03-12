@@ -1,6 +1,6 @@
-# Microsoft Foundry ITSM Agent Workshop
+# Microsoft Foundry ITSM - Service Desk Agents
 
-Hands-on workshop demonstrating how to build agentic service desk integrations using:
+A reference implementation demonstrating how to build agentic service desk integrations using:
 
 - **Microsoft Foundry** — AI agent orchestration and tool invocation
 - **Model Context Protocol (MCP)** — standard interface for exposing enterprise capabilities as agent tools
@@ -11,7 +11,7 @@ Hands-on workshop demonstrating how to build agentic service desk integrations u
 
 ## What This Repository Demonstrates
 
-This repository contains the workshop environment used to demonstrate how **agentic AI solutions can securely integrate with enterprise systems** using Microsoft Foundry, Model Context Protocol (MCP), and Azure API Management.
+This repository demonstrates how **agentic AI solutions can securely integrate with enterprise systems** using Microsoft Foundry, Model Context Protocol (MCP), and Azure API Management.
 
 The scenario models a **service desk automation agent** that can:
 
@@ -20,13 +20,13 @@ The scenario models a **service desk automation agent** that can:
 - Route requests securely through Azure API Management
 - Use Microsoft Foundry agents to orchestrate tool calls
 
-The environment is pre-configured to allow participants to focus on **agent configuration, MCP tool registration, and end-to-end testing** during the workshop.
+The environment is pre-configured to support **agent configuration, MCP tool registration, and end-to-end testing**.
 
 ---
 
-## Workshop Flow
+## Getting Started
 
-During the hands-on portion of the workshop, participants will:
+To explore this solution, you will:
 
 1. Review the deployed Azure resources
 2. Configure Azure API Management policies for MCP tools
@@ -36,7 +36,9 @@ During the hands-on portion of the workshop, participants will:
 
 The goal is to demonstrate how **agents can securely interact with enterprise systems using MCP and API Management**.
 
-> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)** 
+> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)**
+>
+> Prefer to deploy without Terraform? See **[docs/manual_deployment.md](docs/manual_deployment.md)**
 
 ---
 
@@ -57,7 +59,7 @@ This project provisions all Azure infrastructure via Terraform and configures an
 
 ## 📐 Architecture Overview
 
-The workshop environment demonstrates how Microsoft Foundry agents interact with enterprise systems through MCP and Azure API Management.
+This solution demonstrates how Microsoft Foundry agents interact with enterprise systems through MCP and Azure API Management.
 
 **Flow:**
 
@@ -81,7 +83,7 @@ User → Microsoft Foundry Agent → Azure API Management (MCP Server) → Halo 
 | **Foundry Agent** | Microsoft Foundry, GPT-4.1 | AI service desk assistant grounded on ITSM data |
 | **API Management** | Azure APIM | Exposes Halo ITSM API as an MCP server for Foundry |
 | **Azure AI Search** | Azure Cognitive Search | Vector/keyword search for RAG |
-| **Azure AI Services** | Azure OpenAI | GPT-4.1 inference + text-embedding-ada-002 |
+| **Azure AI Services (Foundry)** | Azure OpenAI | GPT-4.1 inference + text-embedding-ada-002 |
 | **Key Vault** | Azure Key Vault | Secrets and API key management |
 | **Managed Identity** | Azure User-Assigned MI | Secretless auth across all services |
 | **Storage Account** | Azure Blob Storage | Data and artifact storage |
@@ -102,6 +104,7 @@ Azure-AI-Foundry-ITSM/
 │
 ├── docs/
 │   ├── Deployment_Steps.md             # Step-by-step deployment and configuration guide
+│   ├── manual_deployment.md            # Manual (portal-based) deployment guide
 │   └── prompt_examples.md             # Sample prompts for testing the agent
 │
 ├── infra/                              # Infrastructure as Code (Terraform)

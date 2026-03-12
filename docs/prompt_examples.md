@@ -144,7 +144,7 @@ What is the weather like today?
 
 ---
 
-## 💡 Tips for the Workshop
+## 💡 Tips
 
 - Start with a **natural language query** — the agent will call `knowledgebase` with a `search` keyword, then `knowledgebasebyid` with `includedetails=true` to fetch the full article
 - The agent returns the **full verbatim article text** — it does not summarize

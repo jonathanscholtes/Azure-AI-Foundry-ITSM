@@ -102,8 +102,31 @@ module "ai_services" {
   subscription_id        = module.resource_group.subscription_id
   identity_id            = module.identity.id
   identity_principal_id  = module.identity.principal_id
-  gpt41_capacity         = var.ai_services_deployment_gpt41_capacity
-  embedding_capacity     = var.ai_services_deployment_embedding_capacity
+  gpt41_capacity          = var.ai_services_deployment_gpt41_capacity
+  embedding_capacity      = var.ai_services_deployment_embedding_capacity
+  application_insights_id          = module.monitoring.id
+  app_insights_instrumentation_key = module.monitoring.instrumentation_key
+  search_endpoint                  = module.search.endpoint
+  search_service_id                = module.search.id
+
+  depends_on = [module.monitoring, module.search]
+}
+
+# Grant the AI Project's system-assigned identity Search roles so agent search tool calls succeed (AAD auth)
+resource "azurerm_role_assignment" "ai_project_search_index_contributor" {
+  scope                = module.search.id
+  role_definition_name = "Search Index Data Contributor"
+  principal_id         = module.ai_services.ai_project_principal_id
+
+  depends_on = [module.ai_services, module.search]
+}
+
+resource "azurerm_role_assignment" "ai_project_search_service_contributor" {
+  scope                = module.search.id
+  role_definition_name = "Search Service Contributor"
+  principal_id         = module.ai_services.ai_project_principal_id
+
+  depends_on = [module.ai_services, module.search]
 }
 
 # ================================================

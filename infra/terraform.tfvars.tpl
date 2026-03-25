@@ -17,6 +17,8 @@ apim_sku_capacity    = 1
 
 # Halo ITSM
 halo_base_url        = "${HaloBaseUrl}"
+halo_auth_method     = "${HaloAuthMethod}"
+halo_auth_url        = "${HaloAuthUrl}"
 
 # Storage
 storage_account_name = "stg${ResourceToken}"

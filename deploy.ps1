@@ -2,8 +2,9 @@
 # This script coordinates the full end-to-end deployment
 #
 # Usage:
-#   Deploy:  .\deploy.ps1 -Subscription '...' -HaloBaseUrl '...' [-HaloApiKey '...']
-#   Destroy: .\deploy.ps1 -Subscription '...' -Destroy
+#   Deploy (API Key):  .\deploy.ps1 -Subscription '...' -HaloBaseUrl '...' [-HaloApiKey '...']
+#   Deploy (OAuth):    .\deploy.ps1 -Subscription '...' -HaloBaseUrl '...' -HaloAuthMethod 'oauth' -HaloClientId '...' -HaloClientSecret '...' -HaloAuthUrl '...'
+#   Destroy:           .\deploy.ps1 -Subscription '...' -Destroy
 
 param (
     [Parameter(Mandatory=$true)]
@@ -16,10 +17,26 @@ param (
     [string]$Environment = "dev",
     
     [Parameter(Mandatory=$false)]
+    [ValidateSet("apikey", "oauth")]
+    [string]$HaloAuthMethod = "apikey",
+
+    [Parameter(Mandatory=$false)]
     [string]$HaloApiKey,
 
     [Parameter(Mandatory=$false)]
     [string]$HaloBaseUrl,
+
+    [Parameter(Mandatory=$false)]
+    [string]$HaloClientId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$HaloClientSecret,
+
+    [Parameter(Mandatory=$false)]
+    [string]$HaloAuthUrl,
+
+    [Parameter(Mandatory=$false)]
+    [string]$HaloTenant,
 
     [Parameter(Mandatory=$false)]
     [switch]$Destroy
@@ -32,6 +49,14 @@ $Action = if ($Destroy) { "destroy" } else { "all" }
 if (-not $Destroy -and -not $HaloBaseUrl) {
     Write-Error "'-HaloBaseUrl' is required for deployment. Example: -HaloBaseUrl 'https://yourinstance.haloitsm.com/api'"
     exit 1
+}
+
+# OAuth mode requires additional parameters
+if (-not $Destroy -and $HaloAuthMethod -eq "oauth") {
+    if (-not $HaloAuthUrl) {
+        Write-Error "'-HaloAuthUrl' is required for OAuth authentication. Example: -HaloAuthUrl 'https://yourinstance.haloitsm.com/auth/token'"
+        exit 1
+    }
 }
 
 Set-StrictMode -Version Latest
@@ -76,29 +101,53 @@ if ($Destroy) {
 # PHASE 1: Deploy Infrastructure
 Write-Host "`n=== PHASE 1: Infrastructure Deployment ===" -ForegroundColor Magenta
 
-& "$PSScriptRoot/scripts/Deploy-Infrastructure.ps1" `
-    -Action $Action `
-    -Subscription $Subscription `
-    -Location $Location `
-    -Environment $Environment `
-    -HaloBaseUrl $HaloBaseUrl
+$infraParams = @{
+    Action       = $Action
+    Subscription = $Subscription
+    Location     = $Location
+    Environment  = $Environment
+    HaloBaseUrl  = $HaloBaseUrl
+}
+if ($HaloAuthMethod -eq "oauth" -and $HaloAuthUrl) {
+    $infraParams.HaloAuthUrl = $HaloAuthUrl
+}
+
+& "$PSScriptRoot/scripts/Deploy-Infrastructure.ps1" @infraParams
 
 if (-not $? -or $LASTEXITCODE -ne 0) {
     Write-Host "Infrastructure deployment failed" -ForegroundColor Red
     exit 1
 }
 
-if (-not $HaloApiKey) {
-    Write-Host "`n[Warning] -HaloApiKey not provided - skipping APIM Key Vault configuration." -ForegroundColor Yellow
-    Write-Host "           Re-run with -HaloApiKey if you need to store or update the Halo API key.`n" -ForegroundColor Yellow
+$hasCredentials = if ($HaloAuthMethod -eq "oauth") { $HaloClientId -and $HaloClientSecret } else { [bool]$HaloApiKey }
+
+if (-not $hasCredentials) {
+    if ($HaloAuthMethod -eq "oauth") {
+        Write-Host "`n[Warning] -HaloClientId and/or -HaloClientSecret not provided - skipping APIM Key Vault configuration." -ForegroundColor Yellow
+        Write-Host "           Re-run with -HaloClientId and -HaloClientSecret to configure OAuth.`n" -ForegroundColor Yellow
+    } else {
+        Write-Host "`n[Warning] -HaloApiKey not provided - skipping APIM Key Vault configuration." -ForegroundColor Yellow
+        Write-Host "           Re-run with -HaloApiKey if you need to store or update the Halo API key.`n" -ForegroundColor Yellow
+    }
 } else {
     # PHASE 2: Deploy APIM Configuration
     Write-Host "`n=== PHASE 2: APIM Configuration ==="  -ForegroundColor Magenta
 
-    & "$PSScriptRoot/scripts/Deploy-APIM-Configuration.ps1" `
-        -Subscription $Subscription `
-        -HaloApiKey $HaloApiKey `
-        -Environment $Environment
+    $apimParams = @{
+        Subscription   = $Subscription
+        Environment    = $Environment
+        HaloAuthMethod = $HaloAuthMethod
+    }
+    if ($HaloAuthMethod -eq "oauth") {
+        $apimParams.HaloClientId     = $HaloClientId
+        $apimParams.HaloClientSecret = $HaloClientSecret
+        $apimParams.HaloAuthUrl      = $HaloAuthUrl
+        if ($HaloTenant) { $apimParams.HaloTenant = $HaloTenant }
+    } else {
+        $apimParams.HaloApiKey = $HaloApiKey
+    }
+
+    & "$PSScriptRoot/scripts/Deploy-APIM-Configuration.ps1" @apimParams
 
     if (-not $? -or $LASTEXITCODE -ne 0) {
         Write-Host "APIM configuration failed" -ForegroundColor Red
@@ -116,10 +165,14 @@ Write-Host @"
 "@ -ForegroundColor Cyan
 Write-Success "All Azure resources provisioned (AI Services, AI Search, APIM, Storage, Key Vault)"
 Write-Success "Terraform configuration applied successfully"
-if ($HaloApiKey) {
-    Write-Success "Halo API Key stored in Key Vault"
+if ($hasCredentials) {
+    if ($HaloAuthMethod -eq "oauth") {
+        Write-Success "Halo OAuth credentials (client_id, client_secret) stored in Key Vault"
+    } else {
+        Write-Success "Halo API Key stored in Key Vault"
+    }
 } else {
-    Write-Host "  [Skipped] Halo API Key not provided - APIM Key Vault configuration skipped" -ForegroundColor Yellow
+    Write-Host "  [Skipped] Halo credentials not provided - APIM Key Vault configuration skipped" -ForegroundColor Yellow
 }
 
 Write-Host "`n=== Next Steps ===" -ForegroundColor Cyan

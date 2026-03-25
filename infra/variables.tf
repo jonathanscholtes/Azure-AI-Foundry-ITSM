@@ -164,8 +164,37 @@ variable "container_registry_sku" {
 }
 
 # APIM Named Value Variables (for Key Vault secret reference)
+variable "halo_auth_method" {
+  description = "Authentication method for Halo ITSM API: 'apikey' or 'oauth'"
+  type        = string
+  default     = "apikey"
+
+  validation {
+    condition     = contains(["apikey", "oauth"], var.halo_auth_method)
+    error_message = "halo_auth_method must be 'apikey' or 'oauth'."
+  }
+}
+
+variable "halo_auth_url" {
+  description = "Halo ITSM OAuth token endpoint (e.g., https://yourinstance.haloitsm.com/auth/token). Required when halo_auth_method is 'oauth'."
+  type        = string
+  default     = null
+}
+
 variable "key_vault_secret_identifier" {
   description = "Key Vault secret identifier URI for halo-api-key (only set after secret is pushed)"
+  type        = string
+  default     = null
+}
+
+variable "halo_client_id_secret_identifier" {
+  description = "Key Vault secret identifier URI for halo-client-id (only set when halo_auth_method is 'oauth')"
+  type        = string
+  default     = null
+}
+
+variable "halo_client_secret_secret_identifier" {
+  description = "Key Vault secret identifier URI for halo-client-secret (only set when halo_auth_method is 'oauth')"
   type        = string
   default     = null
 }

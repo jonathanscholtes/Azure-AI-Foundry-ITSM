@@ -20,8 +20,8 @@ This document describes every Azure resource in the solution, its exact configur
 12. [Microsoft Foundry — Project](#12-microsoft-foundry--project)
 13. [Microsoft Foundry — Project Connections](#13-microsoft-foundry--project-connections)
 14. [Role Assignments Summary](#14-role-assignments-summary)
-15. [Post-Deployment: Push Halo API Key to Key Vault](#15-post-deployment-push-halo-api-key-to-key-vault)
-16. [Post-Deployment: Configure APIM Named Value](#16-post-deployment-configure-apim-named-value)
+15. [Post-Deployment: Push Halo Credentials to Key Vault](#15-post-deployment-push-halo-credentials-to-key-vault)
+16. [Post-Deployment: Configure APIM Named Values](#16-post-deployment-configure-apim-named-values)
 17. [Post-Deployment: Create the Foundry Agent](#17-post-deployment-create-the-foundry-agent)
 18. [Naming Conventions](#18-naming-conventions)
 19. [Common Tags](#19-common-tags)
@@ -35,7 +35,7 @@ This document describes every Azure resource in the solution, its exact configur
 | Azure Subscription | Contributor or Owner access required |
 | Azure CLI | `az login` completed with target subscription set |
 | Halo ITSM instance | Running and accessible at `https://<your-instance>.haloitsm.com/api` |
-| Halo API Key | Available to store in Key Vault during post-deployment |
+| Halo credentials | **API Key** or **OAuth Client ID + Client Secret** (see [deployment_Steps.md — Halo ITSM](deployment_Steps.md#halo-itsm) for setup) |
 | Region | **East US 2** (`eastus2`) — required for GPT-4.1 availability |
 
 Set your subscription as default before any steps:
@@ -230,7 +230,7 @@ Under **Security → Managed identities**:
 |---|---|
 | Display name | `Halo ITSM API` |
 | Name | `halo-itsm-api` |
-| Description | `Proxies requests to the Halo ITSM instance. Injects the Halo API key from Key Vault via a named value so callers never handle credentials directly.` |
+| Description | `Proxies requests to the Halo ITSM instance. Authenticates to Halo using either an API key header or OAuth 2.0 client credentials bearer token, with credentials sourced from Key Vault via named values.` |
 | Web service URL (Backend) | `https://<your-instance>.haloitsm.com/api` |
 | API URL suffix | `halo` |
 | Protocols | **HTTPS only** |
@@ -289,9 +289,11 @@ Query parameter:
 
 Create a tag named `KB` (display name: `KB`) and assign it to both operations above.
 
-#### API Policy (applied after Named Value is configured)
+#### API Policy (applied after Named Values are configured)
 
-Apply the following policy at the **API level** of the Halo ITSM API (after completing [step 16](#16-post-deployment-configure-apim-named-value)):
+Apply **one** of the following policies at the **API level** of the Halo ITSM API, depending on your authentication method (after completing [step 16](#16-post-deployment-configure-apim-named-values)):
+
+**Option A — API Key policy:**
 
 ```xml
 <policies>
@@ -312,6 +314,61 @@ Apply the following policy at the **API level** of the Halo ITSM API (after comp
   </on-error>
 </policies>
 ```
+
+**Option B — OAuth Client Credentials policy:**
+
+This policy acquires a bearer token from Halo’s OAuth endpoint using the Client Credentials grant, caches it for ~1 hour, and injects the `Authorization: Bearer` header on every request.
+
+```xml
+<policies>
+  <inbound>
+    <base />
+    <!-- Resolve Key Vault-backed named values into context variables -->
+    <set-variable name="haloClientId" value="{{halo-client-id}}" />
+    <set-variable name="haloClientSecret" value="{{halo-client-secret}}" />
+    <set-variable name="haloAuthUrl" value="{{halo-auth-url}}" />
+    <!-- Check cache for existing bearer token -->
+    <cache-lookup-value key="halo-bearer-token" variable-name="bearerToken" />
+    <choose>
+      <when condition="@(!context.Variables.ContainsKey(&quot;bearerToken&quot;))">
+        <!-- Acquire token from Halo OAuth endpoint -->
+        <send-request mode="new" response-variable-name="tokenResponse" timeout="20" ignore-error="false">
+          <set-url>@((string)context.Variables["haloAuthUrl"])</set-url>
+          <set-method>POST</set-method>
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/x-www-form-urlencoded</value>
+          </set-header>
+          <set-header name="Authorization" exists-action="override">
+            <value>@{
+              var clientId = (string)context.Variables["haloClientId"];
+              var clientSecret = (string)context.Variables["haloClientSecret"];
+              return "Basic " + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+            }</value>
+          </set-header>
+          <set-body>grant_type=client_credentials&amp;scope=all</set-body>
+        </send-request>
+        <!-- Parse and cache the token (3500s = just under 1h expiry) -->
+        <set-variable name="bearerToken" value="@(((IResponse)context.Variables[&quot;tokenResponse&quot;]).Body.As&lt;JObject&gt;()[&quot;access_token&quot;].ToString())" />
+        <cache-store-value key="halo-bearer-token" value="@((string)context.Variables[&quot;bearerToken&quot;])" duration="3500" />
+      </when>
+    </choose>
+    <set-header name="Authorization" exists-action="override">
+      <value>@($"Bearer {(string)context.Variables[&quot;bearerToken&quot;]}")</value>
+    </set-header>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+```
+
+> **Note:** The OAuth policy uses APIM’s built-in cache (`<cache-lookup-value>` / `<cache-store-value>`), which is available on the **Developer** tier and above. The `Consumption` tier does not support built-in cache.
 
 #### MCP Server
 

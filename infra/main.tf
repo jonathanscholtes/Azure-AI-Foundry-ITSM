@@ -77,9 +77,13 @@ module "apim" {
   managed_identity_id    = module.identity.id
   # Key Vault secret and identity for named value - only create if available
   # After pushing secret via PowerShell, run: terraform apply -var="key_vault_secret_identifier=<uri>" -var="identity_client_id=<client-id>"
-  key_vault_secret_identifier = var.key_vault_secret_identifier
-  identity_client_id          = var.identity_client_id
-  halo_base_url          = var.halo_base_url
+  key_vault_secret_identifier         = var.key_vault_secret_identifier
+  halo_client_id_secret_identifier    = var.halo_client_id_secret_identifier
+  halo_client_secret_secret_identifier = var.halo_client_secret_secret_identifier
+  identity_client_id                  = var.identity_client_id
+  halo_auth_method     = var.halo_auth_method
+  halo_auth_url        = local.halo_auth_url
+  halo_base_url        = var.halo_base_url
   tags                   = local.common_tags
 }
 

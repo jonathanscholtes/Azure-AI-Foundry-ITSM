@@ -52,8 +52,32 @@ variable "key_vault_secret_identifier" {
   default     = null
 }
 
+variable "halo_client_id_secret_identifier" {
+  description = "Key Vault secret identifier URI for halo-client-id (only set when halo_auth_method is 'oauth')"
+  type        = string
+  default     = null
+}
+
+variable "halo_client_secret_secret_identifier" {
+  description = "Key Vault secret identifier URI for halo-client-secret (only set when halo_auth_method is 'oauth')"
+  type        = string
+  default     = null
+}
+
 variable "identity_client_id" {
   description = "Client ID of the managed identity for accessing Key Vault secrets in APIM (only set after secret is pushed)"
+  type        = string
+  default     = null
+}
+
+variable "halo_auth_method" {
+  description = "Authentication method for Halo ITSM API: 'apikey' or 'oauth'"
+  type        = string
+  default     = "apikey"
+}
+
+variable "halo_auth_url" {
+  description = "Halo ITSM OAuth token endpoint (e.g., https://yourinstance.haloitsm.com/auth/token). Required when halo_auth_method is 'oauth'."
   type        = string
   default     = null
 }

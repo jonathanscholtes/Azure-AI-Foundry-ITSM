@@ -37,12 +37,12 @@ The **deploying user** (the account that runs `deploy.ps1`) requires:
 
 ### Halo ITSM
 
-You will need your Halo instance URL and an API Key. The API key is obtained by registering a temporary application in Halo.
+You will need your Halo instance URL and credentials. The deployment supports two authentication methods:
 
 **Instance URL:**  
 Your Halo base URL — e.g., `https://yourinstance.haloitsm.com`
 
-**Registering the application (API Key):**
+#### Option A — API Key (default)
 
 1. Log in to Halo as an administrator
 2. Go to **Configuration → Integrations → Halo API**
@@ -53,6 +53,21 @@ Your Halo base URL — e.g., `https://yourinstance.haloitsm.com`
 7. Copy this value — it is used as `-HaloApiKey` in the deploy command and stored in Azure Key Vault at deployment time
 
 > Register a dedicated application and delete it from Halo when no longer needed (**Configuration → Integrations → Halo API → Remove this Applications**). Users never see or use this key directly — it is held in Key Vault and injected by APIM as a backend header.
+
+#### Option B — OAuth Client Credentials (bearer token)
+
+Use this method if your Halo instance requires OAuth 2.0 Client Credentials authentication.
+
+1. Log in to Halo as an administrator
+2. Go to **Configuration → Integrations → Halo API**
+3. Click **Authorise a new application**
+4. Set **Authentication Method** to `Client ID and Secret (OAuth 2.0)`
+5. Under **Permissions**, enable `read:kb` (or `all` if finer scopes are unavailable)
+6. Save — Halo will display the **Client ID** and **Client Secret**
+7. Copy both values — they are used as `-HaloClientId` and `-HaloClientSecret` in the deploy command
+8. Note your **Auth URL** — typically `https://yourinstance.haloitsm.com/auth/token`
+
+> The Client ID and Client Secret are stored in Azure Key Vault. APIM acquires a bearer token at runtime using the OAuth 2.0 Client Credentials grant and caches it (just under 1 hour). Callers never handle credentials directly.
 
 ---
 
@@ -67,12 +82,14 @@ cd Azure-AI-Foundry-ITSM
 
 ## Step 2 — Deploy Infrastructure
 
-Log in to Azure, then run the deployment orchestrator. This runs Terraform (Phase 1) and stores the Halo API key in Key Vault (Phase 2).
+Log in to Azure, then run the deployment orchestrator. This runs Terraform (Phase 1) and stores the Halo credentials in Key Vault (Phase 2).
 
 ```powershell
 az login
 az account set --subscription "YOUR-SUBSCRIPTION-ID"
 ```
+
+### Option A — API Key authentication (default)
 
 **Windows:**
 ```powershell
@@ -94,6 +111,34 @@ pwsh ./deploy.ps1 `
     -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
 ```
 
+### Option B — OAuth Client Credentials (bearer token)
+
+**Windows:**
+```powershell
+.\deploy.ps1 `
+    -Subscription "YOUR-SUBSCRIPTION-ID" `
+    -Location "eastus2" `
+    -Environment "dev" `
+    -HaloAuthMethod "oauth" `
+    -HaloClientId "YOUR-CLIENT-ID" `
+    -HaloClientSecret "YOUR-CLIENT-SECRET" `
+    -HaloAuthUrl "https://YOURINSTANCE.haloitsm.com/auth/token" `
+    -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
+```
+
+**Linux / macOS:**
+```powershell
+pwsh ./deploy.ps1 `
+    -Subscription "YOUR-SUBSCRIPTION-ID" `
+    -Location "eastus2" `
+    -Environment "dev" `
+    -HaloAuthMethod "oauth" `
+    -HaloClientId "YOUR-CLIENT-ID" `
+    -HaloClientSecret "YOUR-CLIENT-SECRET" `
+    -HaloAuthUrl "https://YOURINSTANCE.haloitsm.com/auth/token" `
+    -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
+```
+
 > **Estimated time:** 15–40 minutes. API Management provisioning is the slowest resource (~30 min).
 
 **Resources created:**
@@ -102,7 +147,7 @@ pwsh ./deploy.ps1 `
 - Azure AI Search
 - API Management (with Halo ITSM HTTP API pre-configured)
 - Storage Account, Container Registry
-- Key Vault (with Halo API key stored as a secret)
+- Key Vault (with Halo API key or OAuth client credentials stored as secrets)
 - User-Assigned Managed Identity + RBAC assignments
 - Application Insights + Log Analytics Workspace
 
@@ -311,7 +356,7 @@ terraform destroy
 | `terraform apply` fails on APIM | APIM provisioning timeout (common) | Re-run `.\deploy.ps1` with the same parameters — Terraform is idempotent |
 | Notebook `AuthenticationError` | Missing role assignment | Ensure your account has `Azure AI User` on the AI Foundry resource |
 | Agent returns no results | MCP tool not connected to agent | In Foundry portal → agent → verify `Halo-ITSM-MCP` is listed under Tools |
-| APIM returns 401 on MCP calls | Missing APIM policy — Halo API key not being injected as a backend header | Re-run `deploy.ps1` with `-HaloApiKey` to push the Key Vault secret and apply the APIM policy via Terraform |
+| APIM returns 401 on MCP calls | Halo credentials not injected by APIM | **API Key mode:** Re-run `deploy.ps1` with `-HaloApiKey` to push the Key Vault secret. **OAuth mode:** Re-run with `-HaloAuthMethod "oauth" -HaloClientId "..." -HaloClientSecret "..." -HaloAuthUrl "..."` to push OAuth secrets and apply the policy via Terraform |
 | `halo_base_url` not resolving | Wrong URL format | Ensure URL ends with `/api` (no trailing slash), e.g. `https://your.haloitsm.com/api` |
 | Can't find Foundry project | Wrong subscription or region | Run `az account show` to confirm the active subscription |
 | MCP server not visible in APIM | APIM not fully provisioned | Wait 5 min and refresh the portal; APIM UI can lag after initial provision |

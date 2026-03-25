@@ -152,7 +152,7 @@ Azure-AI-Foundry-ITSM/
 | PowerShell | 5.1+ (Windows) · 7+ (Linux/macOS) | **Windows:** Built-in (5.1) or `winget install Microsoft.PowerShell` for 7+ · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
 | Python | 3.10+ | Required for the notebook demo |
 | Azure subscription | — | Sufficient quota for OpenAI, APIM, AI Search. **Owner or Contributor + User Access Administrator** role required. |
-| Halo ITSM API Key | — | Register an application in Halo (**Configuration → Integrations → Halo API → Authorise a new application**, auth method: `API Key`). See [Deployment_Steps.md](docs/deployment_Steps.md#halo-itsm) for full steps. |
+| Halo ITSM credentials | — | **API Key** (default) or **OAuth Client Credentials**. See [Deployment_Steps.md](docs/deployment_Steps.md#halo-itsm) for setup instructions for both methods. |
 
 ### 1. Clone the Repository
 
@@ -168,7 +168,7 @@ To find your subscription ID:
 az account list --output table
 ```
 
-**Windows (PowerShell 5.1+):**
+**Option A — API Key authentication (default):**
 ```powershell
 az login
 az account set --subscription "YOUR-SUBSCRIPTION-ID"
@@ -181,18 +181,23 @@ az account set --subscription "YOUR-SUBSCRIPTION-ID"
     -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
 ```
 
-**Linux / macOS (PowerShell 7+):**
+**Option B — OAuth Client Credentials (bearer token):**
 ```powershell
 az login
 az account set --subscription "YOUR-SUBSCRIPTION-ID"
 
-pwsh ./deploy.ps1 `
+.\deploy.ps1 `
     -Subscription "YOUR-SUBSCRIPTION-ID" `
     -Location "eastus2" `
     -Environment "dev" `
-    -HaloApiKey "YOUR-HALO-API-KEY" `
+    -HaloAuthMethod "oauth" `
+    -HaloClientId "YOUR-CLIENT-ID" `
+    -HaloClientSecret "YOUR-CLIENT-SECRET" `
+    -HaloAuthUrl "https://YOURINSTANCE.haloitsm.com/auth/token" `
     -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
 ```
+
+> On Linux / macOS, prefix with `pwsh` (e.g., `pwsh ./deploy.ps1 ...`).
 
 > **Estimated time:** 15–40 minutes. API Management provisioning is the slowest resource.
 
@@ -201,7 +206,7 @@ pwsh ./deploy.ps1 `
 | Phase | Script | What it does |
 |---|---|---|
 | 1 — Infrastructure | `Deploy-Infrastructure.ps1` | Provisions all Azure resources via Terraform |
-| 2 — APIM Configuration | `Deploy-APIM-Configuration.ps1` | Stores Halo API key in Key Vault |
+| 2 — APIM Configuration | `Deploy-APIM-Configuration.ps1` | Stores Halo credentials in Key Vault (API key or OAuth client ID/secret) |
 
 **Resources created (~15–40 min):**
 
@@ -211,7 +216,7 @@ pwsh ./deploy.ps1 `
 - API Management (with Halo ITSM MCP server)
 - Storage Account
 - Azure Container Registry
-- Azure Key Vault
+- Azure Key Vault (with Halo API key or OAuth client credentials)
 - User-Assigned Managed Identity + RBAC assignments
 - Application Insights + Log Analytics Workspace
 
@@ -236,6 +241,8 @@ pwsh ./deploy.ps1 `
 | `ai_services_deployment_gpt41_capacity` | `150` | GPT-4.1 deployment capacity (PTUs) |
 | `ai_services_deployment_embedding_capacity` | `120` | text-embedding-ada-002 capacity (PTUs) |
 | `halo_base_url` | — | Base URL of your Halo ITSM API (e.g., `https://yourinstance.haloitsm.com/api`) |
+| `halo_auth_method` | `apikey` | Authentication method for Halo ITSM: `apikey` or `oauth` |
+| `halo_auth_url` | — | OAuth token endpoint (required when `halo_auth_method` = `oauth`, e.g., `https://yourinstance.haloitsm.com/auth/token`) |
 
 ### Key Outputs
 

@@ -66,9 +66,9 @@ resource "azapi_resource" "halo_http_api" {
 # API Policies (azapi)
 # ================================================
 
-# HTTP API Policy - only applied once the Named Value (KV secret) exists
+# HTTP API Policy - API Key mode (only when auth_method is 'apikey' and Named Value exists)
 resource "azapi_resource" "halo_http_policy" {
-  count     = var.key_vault_secret_identifier != null ? 1 : 0
+  count     = var.halo_auth_method == "apikey" && var.key_vault_secret_identifier != null ? 1 : 0
   type      = "Microsoft.ApiManagement/service/apis/policies@2022-08-01"
   name      = "policy"
   parent_id = azapi_resource.halo_http_api.id
@@ -99,6 +99,70 @@ resource "azapi_resource" "halo_http_policy" {
   }
 
   depends_on = [azapi_resource.halo_api_key_named_value]
+}
+
+# HTTP API Policy - OAuth mode (only when auth_method is 'oauth' and Named Values exist)
+resource "azapi_resource" "halo_http_policy_oauth" {
+  count     = var.halo_auth_method == "oauth" && var.halo_client_id_secret_identifier != null ? 1 : 0
+  type      = "Microsoft.ApiManagement/service/apis/policies@2022-08-01"
+  name      = "policy"
+  parent_id = azapi_resource.halo_http_api.id
+
+  body = {
+    properties = {
+      format = "xml"
+      value  = <<-XML
+        <policies>
+          <inbound>
+            <base />
+            <!-- Resolve Key Vault-backed named values into context variables -->
+            <set-variable name="haloClientId" value="{{halo-client-id}}" />
+            <set-variable name="haloClientSecret" value="{{halo-client-secret}}" />
+            <set-variable name="haloAuthUrl" value="{{halo-auth-url}}" />
+            <!-- Check cache for existing bearer token -->
+            <cache-lookup-value key="halo-bearer-token" variable-name="bearerToken" />
+            <choose>
+              <when condition="@(!context.Variables.ContainsKey(&quot;bearerToken&quot;))">
+                <!-- Acquire token from Halo OAuth endpoint -->
+                <send-request mode="new" response-variable-name="tokenResponse" timeout="20" ignore-error="false">
+                  <set-url>@((string)context.Variables["haloAuthUrl"])</set-url>
+                  <set-method>POST</set-method>
+                  <set-header name="Content-Type" exists-action="override">
+                    <value>application/x-www-form-urlencoded</value>
+                  </set-header>
+                  <set-header name="Authorization" exists-action="override">
+                    <value>@{
+                      var clientId = (string)context.Variables["haloClientId"];
+                      var clientSecret = (string)context.Variables["haloClientSecret"];
+                      return "Basic " + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+                    }</value>
+                  </set-header>
+                  <set-body>grant_type=client_credentials&amp;scope=all</set-body>
+                </send-request>
+                <!-- Parse and cache the token (3500s = just under 1h expiry) -->
+                <set-variable name="bearerToken" value="@(((IResponse)context.Variables[&quot;tokenResponse&quot;]).Body.As&lt;JObject&gt;()[&quot;access_token&quot;].ToString())" />
+                <cache-store-value key="halo-bearer-token" value="@((string)context.Variables[&quot;bearerToken&quot;])" duration="3500" />
+              </when>
+            </choose>
+            <set-header name="Authorization" exists-action="override">
+              <value>@($"Bearer {(string)context.Variables[&quot;bearerToken&quot;]}")</value>
+            </set-header>
+          </inbound>
+          <backend>
+            <base />
+          </backend>
+          <outbound>
+            <base />
+          </outbound>
+          <on-error>
+            <base />
+          </on-error>
+        </policies>
+      XML
+    }
+  }
+
+  depends_on = [azapi_resource.halo_client_id_named_value, azapi_resource.halo_client_secret_named_value, azapi_resource.halo_auth_url_named_value]
 }
 
 # ================================================
@@ -251,9 +315,9 @@ resource "azapi_resource" "knowledgebase_by_id_kb_tag" {
 # Named Values (azapi)
 # ================================================
 
-# Halo API Key Named Value - created after secret is pushed to Key Vault
+# Halo API Key Named Value - created after secret is pushed to Key Vault (apikey mode)
 resource "azapi_resource" "halo_api_key_named_value" {
-  count     = var.key_vault_secret_identifier != null ? 1 : 0
+  count     = var.halo_auth_method == "apikey" && var.key_vault_secret_identifier != null ? 1 : 0
   type      = "Microsoft.ApiManagement/service/namedValues@2022-08-01"
   name      = "halo-api-key"
   parent_id = azurerm_api_management.main.id
@@ -266,6 +330,58 @@ resource "azapi_resource" "halo_api_key_named_value" {
         secretIdentifier = var.key_vault_secret_identifier
         identityClientId = var.identity_client_id
       }
+    }
+  }
+}
+
+# Halo OAuth Named Values - created after secrets are pushed to Key Vault (oauth mode)
+resource "azapi_resource" "halo_client_id_named_value" {
+  count     = var.halo_auth_method == "oauth" && var.halo_client_id_secret_identifier != null ? 1 : 0
+  type      = "Microsoft.ApiManagement/service/namedValues@2022-08-01"
+  name      = "halo-client-id"
+  parent_id = azurerm_api_management.main.id
+
+  body = {
+    properties = {
+      displayName = "halo-client-id"
+      secret      = true
+      keyVault = {
+        secretIdentifier = var.halo_client_id_secret_identifier
+        identityClientId = var.identity_client_id
+      }
+    }
+  }
+}
+
+resource "azapi_resource" "halo_client_secret_named_value" {
+  count     = var.halo_auth_method == "oauth" && var.halo_client_secret_secret_identifier != null ? 1 : 0
+  type      = "Microsoft.ApiManagement/service/namedValues@2022-08-01"
+  name      = "halo-client-secret"
+  parent_id = azurerm_api_management.main.id
+
+  body = {
+    properties = {
+      displayName = "halo-client-secret"
+      secret      = true
+      keyVault = {
+        secretIdentifier = var.halo_client_secret_secret_identifier
+        identityClientId = var.identity_client_id
+      }
+    }
+  }
+}
+
+resource "azapi_resource" "halo_auth_url_named_value" {
+  count     = var.halo_auth_method == "oauth" && var.halo_auth_url != null ? 1 : 0
+  type      = "Microsoft.ApiManagement/service/namedValues@2022-08-01"
+  name      = "halo-auth-url"
+  parent_id = azurerm_api_management.main.id
+
+  body = {
+    properties = {
+      displayName = "halo-auth-url"
+      secret      = false
+      value       = var.halo_auth_url
     }
   }
 }

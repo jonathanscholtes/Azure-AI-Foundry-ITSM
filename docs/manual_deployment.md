@@ -525,9 +525,11 @@ Select **Application Insights** from the connection type picker, then configure:
 
 ---
 
-## 15. Post-Deployment: Push Halo API Key to Key Vault
+## 15. Post-Deployment: Push Halo Credentials to Key Vault
 
-After all resources are deployed, store the Halo ITSM API key in Key Vault:
+After all resources are deployed, store the Halo ITSM credentials in Key Vault.
+
+### Option A — API Key
 
 ```bash
 az keyvault secret set \
@@ -538,13 +540,33 @@ az keyvault secret set \
 
 Copy the resulting **Secret Identifier URI** (e.g., `https://kv-a67kigj.vault.azure.net/secrets/halo-api-key/<version>`) — required for the next step.
 
+### Option B — OAuth Client Credentials
+
+Store two secrets (the auth URL is **not** stored in Key Vault — it is configured as a plain APIM named value in [step 16](#16-post-deployment-configure-apim-named-values)):
+
+```bash
+az keyvault secret set \
+  --vault-name "kv-<token>" \
+  --name "halo-client-id" \
+  --value "<your-halo-client-id>"
+
+az keyvault secret set \
+  --vault-name "kv-<token>" \
+  --name "halo-client-secret" \
+  --value "<your-halo-client-secret>"
+```
+
+Copy each resulting **Secret Identifier URI** — both are required for the next step.
+
 ---
 
-## 16. Post-Deployment: Configure APIM Named Value
+## 16. Post-Deployment: Configure APIM Named Values
 
-This step links the APIM API policy's `{{halo-api-key}}` placeholder to the Key Vault secret.
+This step links the APIM API policy placeholders to the Key Vault secrets.
 
 **Portal path:** APIM → Named values → Add
+
+### Option A — API Key (1 named value)
 
 | Setting | Value |
 |---|---|
@@ -552,10 +574,44 @@ This step links the APIM API policy's `{{halo-api-key}}` placeholder to the Key 
 | Display name | `halo-api-key` |
 | Type | **Key Vault** |
 | Secret | **Yes** |
-| Key Vault secret identifier | URI from [step 15](#15-post-deployment-push-halo-api-key-to-key-vault) |
+| Key Vault secret identifier | `halo-api-key` URI from [step 15](#15-post-deployment-push-halo-credentials-to-key-vault) |
 | Identity | `id-ai-foundry-main` (User-assigned managed identity Client ID) |
 
-After saving the Named Value, apply the API policy from [step 9](#api-policy-applied-after-named-value-is-configured) to the Halo ITSM API.
+### Option B — OAuth Client Credentials (3 named values)
+
+**Named value 1 — `halo-client-id` (Key Vault-backed):**
+
+| Setting | Value |
+|---|---|
+| Name | `halo-client-id` |
+| Display name | `halo-client-id` |
+| Type | **Key Vault** |
+| Secret | **Yes** |
+| Key Vault secret identifier | `halo-client-id` URI from [step 15](#15-post-deployment-push-halo-credentials-to-key-vault) |
+| Identity | `id-ai-foundry-main` (User-assigned managed identity Client ID) |
+
+**Named value 2 — `halo-client-secret` (Key Vault-backed):**
+
+| Setting | Value |
+|---|---|
+| Name | `halo-client-secret` |
+| Display name | `halo-client-secret` |
+| Type | **Key Vault** |
+| Secret | **Yes** |
+| Key Vault secret identifier | `halo-client-secret` URI from [step 15](#15-post-deployment-push-halo-credentials-to-key-vault) |
+| Identity | `id-ai-foundry-main` (User-assigned managed identity Client ID) |
+
+**Named value 3 — `halo-auth-url` (plain value, not Key Vault):**
+
+| Setting | Value |
+|---|---|
+| Name | `halo-auth-url` |
+| Display name | `halo-auth-url` |
+| Type | **Plain** |
+| Secret | **No** |
+| Value | `https://<your-instance>.haloitsm.com/auth/token` |
+
+After saving the Named Values, apply the corresponding API policy from [step 9](#api-policy-applied-after-named-value-is-configured) to the Halo ITSM API.
 
 ---
 

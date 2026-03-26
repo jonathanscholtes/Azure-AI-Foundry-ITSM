@@ -256,7 +256,7 @@ Query parameters:
 | Name | Required | Type | Description |
 |---|---|---|---|
 | `search` | No | string | Filter articles by keyword |
-| `count` | No | integer | Maximum number of articles to return |
+| `count` | No | integer | Maximum number of articles to return (default: 5) |
 | `pageinate` | No | boolean | Whether to use pagination |
 | `page_size` | No | integer | Number of results per page |
 | `page_no` | No | integer | Page number to return |
@@ -299,6 +299,9 @@ Apply **one** of the following policies at the **API level** of the Halo ITSM AP
 <policies>
   <inbound>
     <base />
+    <set-query-parameter name="count" exists-action="skip">
+      <value>5</value>
+    </set-query-parameter>
     <set-header name="X-Halo-Api-Key" exists-action="override">
       <value>{{halo-api-key}}</value>
     </set-header>
@@ -323,6 +326,9 @@ This policy acquires a bearer token from Halo’s OAuth endpoint using the Clien
 <policies>
   <inbound>
     <base />
+    <set-query-parameter name="count" exists-action="skip">
+      <value>5</value>
+    </set-query-parameter>
     <!-- Resolve Key Vault-backed named values into context variables -->
     <set-variable name="haloClientId" value="{{halo-client-id}}" />
     <set-variable name="haloClientSecret" value="{{halo-client-secret}}" />

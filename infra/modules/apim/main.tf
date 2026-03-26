@@ -80,6 +80,9 @@ resource "azapi_resource" "halo_http_policy" {
         <policies>
           <inbound>
             <base />
+            <set-query-parameter name="count" exists-action="skip">
+              <value>5</value>
+            </set-query-parameter>
             <set-header name="X-Halo-Api-Key" exists-action="override">
               <value>{{halo-api-key}}</value>
             </set-header>
@@ -115,6 +118,9 @@ resource "azapi_resource" "halo_http_policy_oauth" {
         <policies>
           <inbound>
             <base />
+            <set-query-parameter name="count" exists-action="skip">
+              <value>5</value>
+            </set-query-parameter>
             <!-- Resolve Key Vault-backed named values into context variables -->
             <set-variable name="haloClientId" value="{{halo-client-id}}" />
             <set-variable name="haloClientSecret" value="{{halo-client-secret}}" />
@@ -193,7 +199,8 @@ resource "azapi_resource" "knowledgebase_operation" {
             name        = "count"
             required    = false
             type        = "integer"
-            description = "Maximum number of articles to return. Use to limit result size."
+            defaultValue = "5"
+            description = "Maximum number of articles to return (default: 5). Use to limit result size."
           },
           {
             name        = "pageinate"

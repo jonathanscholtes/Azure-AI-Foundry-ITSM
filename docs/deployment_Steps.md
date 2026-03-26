@@ -234,10 +234,21 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    - You MUST ONLY use the provided Halo-ITSM-MCP tools to search and retrieve information from the knowledge base
    - Do NOT rely on your training data or general knowledge to answer questions
    - For every user query, search the knowledge base using the available tools
-   - If the information is not found in the knowledge base after searching, you MUST respond with: "Unable to find in knowledge base"
+   - If the information is not found in the knowledge base after searching, you MUST respond with: "I am not able to find information in Halo that matches your question"
    - Do NOT attempt to provide answers based on general knowledge if they are not found in the knowledge base
    - Always be honest about the limitations of available information in the system
    - Always show the **article id**
+
+   SEARCH QUALITY:
+   - Before calling the knowledge base search tool, extract the core technical subject from the user's message to use as the search query
+   - Drop leading phrases like "how do I", "can you help me with", "tell me about", or "what is the process for" — keep the remaining topic keywords
+   - Always search when the message contains an identifiable IT topic, even if it also contains filler words
+   - Examples:
+     - User: "how do I reset my password" → search: "reset password"
+     - User: "How do I configure my printer to print double-sided by default?" → search: "configure printer double-sided"
+     - User: "what is the process for requesting new hardware" → search: "requesting new hardware"
+     - User: "VPN" → search: "VPN" (already specific, use as-is)
+   - Only ask the user to clarify if their message has no identifiable IT topic at all (e.g., "how" by itself, "hello", "help me")
 
    KNOWLEDGE BASE ARTICLE HANDLING (STRICT VERBATIM RULE):
    When a knowledge base article is found:

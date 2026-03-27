@@ -52,7 +52,7 @@ resource "azapi_resource" "halo_http_api" {
       serviceUrl           = var.halo_base_url
       path                 = "halo"
       protocols            = ["https"]
-      subscriptionRequired = false
+      subscriptionRequired = true
       apiRevision          = "1"
       subscriptionKeyParameterNames = {
         header = "Ocp-Apim-Subscription-Key"
@@ -390,5 +390,28 @@ resource "azapi_resource" "halo_auth_url_named_value" {
       secret      = false
       value       = var.halo_auth_url
     }
+  }
+}
+
+# ================================================
+# Subscriptions (for API key authentication)
+# ================================================
+
+resource "azapi_resource" "ai_agent_subscription" {
+  type      = "Microsoft.ApiManagement/service/subscriptions@2022-08-01"
+  name      = "ai-agent-subscription"
+  parent_id = azurerm_api_management.main.id
+
+  body = {
+    properties = {
+      displayName  = "AI Agent Subscription"
+      scope        = "${azurerm_api_management.main.id}/apis"
+      state        = "active"
+      allowTracing = true
+    }
+  }
+
+  response_export_values = {
+    primaryKey = "properties.primaryKey"
   }
 }

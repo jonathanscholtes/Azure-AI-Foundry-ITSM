@@ -32,3 +32,9 @@ output "kb_tag_id" {
   description = "ID of the KB tag"
   value       = azapi_resource.kb_tag.id
 }
+
+output "ai_agent_subscription_primary_key" {
+  description = "Primary subscription key for the AI Agent APIM subscription"
+  value       = azapi_resource.ai_agent_subscription.output.primaryKey
+  sensitive   = true
+}

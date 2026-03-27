@@ -168,9 +168,18 @@ Note these values:
 |---|---|
 | `apim_gateway_url` | Base URL for the APIM MCP server endpoint |
 | `apim_name` | Finding the APIM instance in the Azure Portal |
+| `apim_subscription_key` | APIM subscription key for authenticating API/MCP calls (sensitive — use `terraform output -raw apim_subscription_key`). Alternatively, retrieve it from the Azure Portal (see below). |
 | `ai_account_endpoint` | Notebook `.env` → `PROJECT_ENDPOINT` |
 | `ai_project_name` | Notebook `.env` → `PROJECT_ENDPOINT` (appended to endpoint) |
 | `resource_group_name` | Finding resources in the Azure Portal |
+
+**Retrieving the subscription key from the Azure Portal:**
+
+1. Navigate to your **API Management** instance in the Azure Portal
+2. In the left menu, click **Subscriptions**
+3. Find the **AI Agent Subscription** row
+4. Click the **⋯** (ellipsis) menu → **Show/hide keys**
+5. Copy the **Primary key**
 
 ---
 
@@ -194,15 +203,25 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    | **Tools** | Select both operations: `knowledgebase` (GET /KBArticle) and `knowledgebasebyid` (GET /KBArticle/{id}) |
    | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows.` |
 
-5. Click **Create**
+5. Under **Subscription**, check **Subscription required** and verify the key names:
 
-6. Once created, open the MCP server entry and **copy the MCP Server endpoint URL**  
+   | Setting | Value |
+   |---|---|
+   | **Subscription required** | **Checked** |
+   | **Header name** | `Ocp-Apim-Subscription-Key` |
+   | **Query parameter name** | `subscription-key` |
+
+6. Click **Create**
+
+7. Once created, open the MCP server entry and **copy the MCP Server endpoint URL**  
 
    The URL format is:
    ```
    https://<apim-name>.azure-api.net/<mcp-server-path>/mcp
    ```
    Save this URL — you will need it in Step 5 and Step 7.
+
+   > **Important:** The MCP Server is a separate API from the Halo ITSM API. The APIM subscription must be scoped to **All APIs** (not a single API) so the key works for both the Halo API and the MCP Server endpoint.
 
 ---
 
@@ -244,10 +263,10 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    - Drop leading phrases like "how do I", "can you help me with", "tell me about", or "what is the process for" — keep the remaining topic keywords
    - Always search when the message contains an identifiable IT topic, even if it also contains filler words
    - Examples:
-     - User: "how do I reset my password" → search: "reset password"
-     - User: "How do I configure my printer to print double-sided by default?" → search: "configure printer double-sided"
-     - User: "what is the process for requesting new hardware" → search: "requesting new hardware"
-     - User: "VPN" → search: "VPN" (already specific, use as-is)
+   - User: "how do I reset my password" → search: "reset password"
+   - User: "How do I configure my printer to print double-sided by default?" → search: "configure printer double-sided"
+   - User: "what is the process for requesting new hardware" → search: "requesting new hardware"
+   - User: "VPN" → search: "VPN" (already specific, use as-is)
    - Only ask the user to clarify if their message has no identifiable IT topic at all (e.g., "how" by itself, "hello", "help me")
 
    KNOWLEDGE BASE ARTICLE HANDLING (STRICT VERBATIM RULE):
@@ -256,6 +275,7 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    2) You MUST output the ENTIRE article text exactly as returned by the tool.
    3) You MUST NOT summarize, paraphrase, shorten, or rewrite any part of the article.
    4) You MUST NOT remove any sections or metadata (title, created/edited dates, review dates, article ID, description, resolution, steps).
+   5) When the article contains HTML content (such as <img> tags), you MUST preserve the original HTML tags exactly as they appear. Do NOT convert HTML <img> tags to markdown image syntax (![alt](url)).
    ```
 
 7. Under **Tools**, click **Add**
@@ -268,9 +288,10 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    |---|---|
    | **Name** | `Halo-ITSM-MCP` |
    | **Remote MCP Server endpoint** | The MCP Server URL copied from Step 4 |
-   | **Authentication** | `None` |
+   | **Authentication** | `Key-based` |
+   | **Credential** | Key: `Ocp-Apim-Subscription-Key`  Value: *(the subscription key from Step 3 — `terraform output -raw apim_subscription_key`)* |
 
-   > No authentication is required. The Halo API key is injected as a backend header by the APIM policy — callers never handle credentials directly.
+   > The APIM API requires a subscription key. The Halo API key is injected separately as a backend header by the APIM policy — callers never handle Halo credentials directly.
 
 10. Click **Add** to add the tool
 
@@ -316,6 +337,10 @@ MCP_SERVER_URL=https://<apim-name>.azure-api.net/<mcp-path>/mcp
 
 # A local label for the MCP server connection
 MCP_SERVER_LABEL=halo-itsm-mcp
+
+# APIM subscription key — required to authenticate with the APIM gateway
+# Value from: terraform output -raw apim_subscription_key
+APIM_SUBSCRIPTION_KEY=<your-apim-subscription-key>
 ```
 
 ### 6b — Install Python dependencies

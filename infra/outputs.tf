@@ -89,6 +89,12 @@ output "apim_portal_url" {
   value       = module.apim.portal_url
 }
 
+output "apim_subscription_key" {
+  description = "Primary subscription key for the AI Agent APIM subscription (use as Ocp-Apim-Subscription-Key header)"
+  value       = module.apim.ai_agent_subscription_primary_key
+  sensitive   = true
+}
+
 # AI Foundry Outputs
 output "ai_account_id" {
   description = "ID of the AI Services account"

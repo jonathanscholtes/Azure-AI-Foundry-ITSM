@@ -234,7 +234,7 @@ Under **Security → Managed identities**:
 | Web service URL (Backend) | `https://<your-instance>.haloitsm.com/api` |
 | API URL suffix | `halo` |
 | Protocols | **HTTPS only** |
-| Subscription required | **No** |
+| Subscription required | **Yes** |
 | API revision | `1` |
 
 #### API Operations
@@ -378,10 +378,62 @@ This policy acquires a bearer token from Halo’s OAuth endpoint using the Clien
 
 #### MCP Server
 
-APIM exposes an MCP (Model Context Protocol) endpoint automatically for APIs tagged appropriately. After deployment:
+After the Halo ITSM API and its operations are created, expose it as an MCP server so Foundry agents can call it:
 
-1. Navigate to **APIM → MCP Servers** in the Azure Portal
-2. Copy the MCP server URL — this is the value for `MCP_SERVER_URL` in the notebook `.env` file
+1. Navigate to **APIM → APIs → MCP Servers** in the Azure Portal
+
+2. Click **+ Create** → **Expose an API as an MCP server**
+
+3. Fill in the form:
+
+   | Field | Value |
+   |---|---|
+   | **Name** | `Halo-ITSM-MCP` |
+   | **API** | `Halo ITSM API` *(the API created above)* |
+   | **Tools** | Select both operations: `knowledgebase` (GET /KBArticle) and `knowledgebasebyid` (GET /KBArticle/{id}) |
+   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows.` |
+
+4. Under **Subscription**, check **Subscription required** and verify the key names:
+
+   | Setting | Value |
+   |---|---|
+   | **Subscription required** | **Checked** |
+   | **Header name** | `Ocp-Apim-Subscription-Key` |
+   | **Query parameter name** | `subscription-key` |
+
+5. Click **Create**
+
+6. Once created, open the MCP server entry and **copy the MCP Server endpoint URL**
+
+   The URL format is:
+   ```
+   https://<apim-name>.azure-api.net/<mcp-server-path>/mcp
+   ```
+
+   > **Important:** The MCP Server is a separate API from the Halo ITSM API. The APIM subscription must be scoped to **All APIs** (not a single API) so the key works for both the Halo API and the MCP Server endpoint.
+
+   Save this URL — it is the value for `MCP_SERVER_URL` in the notebook `.env` file
+
+#### APIM Subscription (API Key)
+
+Since the API requires a subscription key, create a subscription scoped to the Halo ITSM API:
+
+1. Navigate to **APIM → Subscriptions** in the Azure Portal
+2. Click **+ Add subscription**
+3. Configure:
+
+   | Setting | Value |
+   |---|---|
+   | Display name | `AI Agent Subscription` |
+   | Scope | **All APIs** |
+   | State | Active |
+
+4. After creation, retrieve the key:
+   1. In the left menu, click **Subscriptions**
+   2. Find the **AI Agent Subscription** row
+   3. Click the **⋯** (ellipsis) menu → **Show/hide keys**
+   4. Copy the **Primary key**
+5. This key must be passed as the `Ocp-Apim-Subscription-Key` header on all API and MCP calls
 
 ---
 
@@ -623,10 +675,100 @@ After saving the Named Values, apply the corresponding API policy from [step 9](
 
 ## 17. Post-Deployment: Create the Foundry Agent
 
-Once all Azure resources are deployed, create and configure the **ServiceDeskAssistant** agent:
+Once all Azure resources are deployed, create and configure the **ServiceDeskAssistant** agent.
 
-- **Via the Microsoft Foundry portal** (recommended): follow [deployment_Steps.md — Step 5](deployment_Steps.md#step-5--create-the-foundry-agent)
-- **Programmatically via the Azure AI SDK**: follow [deployment_Steps.md — Step 6](deployment_Steps.md#step-6--set-up-the-notebook-optional--sdk-demo)
+### Via the Microsoft Foundry Portal
+
+1. Open the **[Microsoft Foundry portal](https://ai.azure.com/)** and sign in
+
+2. Select your **Foundry project**  
+   *(Navigate to your subscription → resource group → AI Services account → open in Foundry, or find it directly on the Foundry home page)*
+
+3. In the left menu, go to **Build → Agents**
+
+4. Click **+ New agent** → **From scratch**
+
+5. Configure the agent:
+
+   | Field | Value |
+   |---|---|
+   | **Name** | `ServiceDeskAssistant` |
+   | **Model** | `gpt-4.1` |
+   | **Description** | `An AI-powered service desk assistant that retrieves IT support answers from the Halo ITSM knowledge base.` |
+
+6. In the **Instructions** (System Prompt) field, paste the following:
+
+   ```
+   You are ServiceDeskAssistant, an intelligent IT service desk support agent. Your primary role is to help users with IT support requests, incident management, and knowledge base queries.
+
+   IMPORTANT GUIDELINES:
+   - You MUST ONLY use the provided Halo-ITSM-MCP tools to search and retrieve information from the knowledge base
+   - Do NOT rely on your training data or general knowledge to answer questions
+   - For every user query, search the knowledge base using the available tools
+   - If the information is not found in the knowledge base after searching, you MUST respond with: "I am not able to find information in Halo that matches your question"
+   - Do NOT attempt to provide answers based on general knowledge if they are not found in the knowledge base
+   - Always be honest about the limitations of available information in the system
+   - Always show the **article id**
+
+   SEARCH QUALITY:
+   - Before calling the knowledge base search tool, extract the core technical subject from the user's message to use as the search query
+   - Drop leading phrases like "how do I", "can you help me with", "tell me about", or "what is the process for" — keep the remaining topic keywords
+   - Always search when the message contains an identifiable IT topic, even if it also contains filler words
+   - Examples:
+     - User: "how do I reset my password" → search: "reset password"
+     - User: "How do I configure my printer to print double-sided by default?" → search: "configure printer double-sided"
+     - User: "what is the process for requesting new hardware" → search: "requesting new hardware"
+     - User: "VPN" → search: "VPN" (already specific, use as-is)
+   - Only ask the user to clarify if their message has no identifiable IT topic at all (e.g., "how" by itself, "hello", "help me")
+
+   KNOWLEDGE BASE ARTICLE HANDLING (STRICT VERBATIM RULE):
+   When a knowledge base article is found:
+   1) You MUST retrieve the FULL article body using the appropriate tool (not just a search preview).
+   2) You MUST output the ENTIRE article text exactly as returned by the tool.
+   3) You MUST NOT summarize, paraphrase, shorten, or rewrite any part of the article.
+   4) You MUST NOT remove any sections or metadata (title, created/edited dates, review dates, article ID, description, resolution, steps).
+   5) When the article contains HTML content (such as <img> tags), you MUST preserve the original HTML tags exactly as they appear. Do NOT convert HTML <img> tags to markdown image syntax (![alt](url)).
+   ```
+
+7. Under **Tools**, click **Add**
+
+8. Choose **Custom** → **Model Context Protocol (MCP)**
+
+9. Fill in the connection form:
+
+   | Field | Value |
+   |---|---|
+   | **Name** | `Halo-ITSM-MCP` |
+   | **Remote MCP Server endpoint** | The MCP Server URL copied from the [MCP Server section](#mcp-server) above |
+   | **Authentication** | `Key-based` |
+   | **Credential** | Key: `Ocp-Apim-Subscription-Key`  Value: *(the subscription key from the [APIM Subscription section](#apim-subscription-api-key) above)* |
+
+   > The APIM API requires a subscription key. The Halo API key is injected separately as a backend header by the APIM policy — callers never handle Halo credentials directly.
+
+10. Click **Add** to add the tool
+
+11. On the tool card for `Halo-ITSM-MCP`, click the **⋯** (three dots) menu and select **Configure**
+
+12. Set **Approval setting for tools in this MCP server for this agent** to **Always auto-approve all tools**, then click **Add**
+
+13. Click **Create** to save the agent
+
+14. Test the agent in the **Playground** with a sample query:
+    - *"How do I reset my password?"*
+    - *"My laptop charger is damaged, how do I get a replacement?"*
+    - *"How do I set up VPN to work from home?"*
+
+    > See [prompt_examples.md](prompt_examples.md) for a full set of categorised test prompts, including out-of-scope queries that demonstrate grounding behaviour.
+
+### Via the Azure AI SDK (Notebook)
+
+For a programmatic approach, see the notebook `Notebooks/01_azure_ai_agent-mcp.ipynb` which creates and runs the agent using the Azure AI Projects SDK. To set it up:
+
+1. Create a `.env` file: `cp Notebooks/.env.sample Notebooks/.env`
+2. Fill in: `PROJECT_ENDPOINT`, `MODEL_DEPLOYMENT_NAME`, `MCP_SERVER_URL`, `MCP_SERVER_LABEL`, `APIM_SUBSCRIPTION_KEY`
+3. Install dependencies: `cd Notebooks && pip install -r requirements.txt`
+4. Authenticate: `az login`
+5. Open the notebook in VS Code or Jupyter and run cells in order
 
 ---
 

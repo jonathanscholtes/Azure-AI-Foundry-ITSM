@@ -277,6 +277,123 @@ resource "azapi_resource" "knowledgebase_by_id_operation" {
 }
 
 # ================================================
+# Ticket Operations (azapi)
+# ================================================
+
+# Tickets list GET operation
+resource "azapi_resource" "tickets_operation" {
+  type      = "Microsoft.ApiManagement/service/apis/operations@2022-08-01"
+  name      = "tickets"
+  parent_id = azapi_resource.halo_http_api.id
+
+  body = {
+    properties = {
+      displayName = "tickets"
+      description = "List and search tickets from Halo ITSM. Returns a paginated list of ticket objects."
+      method      = "GET"
+      urlTemplate = "/Tickets"
+      request = {
+        queryParameters = [
+          {
+            name         = "page_no"
+            required     = false
+            type         = "integer"
+            description  = "Page number to return when using pagination."
+          },
+          {
+            name         = "page_size"
+            required     = false
+            type         = "integer"
+            description  = "Number of results per page when using pagination."
+          },
+          {
+            name         = "search"
+            required     = false
+            type         = "string"
+            description  = "Filter tickets by keyword."
+          },
+          {
+            name         = "ticketidonly"
+            required     = false
+            type         = "boolean"
+            description  = "Returns only the ID fields (Ticket ID, SLA ID, Status ID, Client ID and Name and Lastincomingemail date) of the Tickets. Not compatible with pagination."
+          },
+          {
+            name         = "count"
+            required     = false
+            type         = "integer"
+            defaultValue = "5"
+            description  = "Maximum number of tickets to return (default: 5)."
+          }
+        ]
+      }
+      responses = [
+        {
+          statusCode  = 200
+          description = "Paginated list of ticket objects"
+        }
+      ]
+    }
+  }
+}
+
+# Ticket by ID GET operation
+resource "azapi_resource" "tickets_by_id_operation" {
+  type      = "Microsoft.ApiManagement/service/apis/operations@2022-08-01"
+  name      = "tickets-by-id"
+  parent_id = azapi_resource.halo_http_api.id
+
+  body = {
+    properties = {
+      displayName        = "ticketsbyid"
+      description        = "Retrieves a single ticket object by its Halo ITSM ticket ID."
+      method             = "GET"
+      urlTemplate        = "/Tickets/{id}"
+      templateParameters = [
+        {
+          name        = "id"
+          required    = true
+          type        = "integer"
+          description = "The Ticket's ID"
+        }
+      ]
+      request = {
+        queryParameters = [
+          {
+            name        = "includedetails"
+            required    = false
+            type        = "boolean"
+            description = "Whether to include extra objects in the response."
+          },
+          {
+            name        = "includelastaction"
+            required    = false
+            type        = "boolean"
+            description = "Whether to include the last action in the response."
+          },
+          {
+            name        = "ticketidonly"
+            required    = false
+            type        = "boolean"
+            description = "Returns only the ID fields (Ticket ID, SLA ID, Status ID, Client ID and Name and Lastincomingemail date)."
+          }
+        ]
+      }
+      responses = [
+        {
+          statusCode  = 200
+          description = "Single ticket object"
+        },
+        {
+          statusCode  = 404
+          description = "Ticket not found"
+        }
+      ]
+    }
+  }
+}
+
+# ================================================
 # Tags (azapi)
 # ================================================
 
@@ -316,6 +433,40 @@ resource "azapi_resource" "knowledgebase_by_id_kb_tag" {
   body = {}
 
   depends_on = [azapi_resource.kb_tag]
+}
+
+resource "azapi_resource" "tickets_tag" {
+  type      = "Microsoft.ApiManagement/service/tags@2022-08-01"
+  name      = "tickets"
+  parent_id = azurerm_api_management.main.id
+
+  body = {
+    properties = {
+      displayName = "Tickets"
+    }
+  }
+}
+
+# Link tickets operation to Tickets tag
+resource "azapi_resource" "tickets_tickets_tag" {
+  type      = "Microsoft.ApiManagement/service/apis/operations/tags@2022-08-01"
+  name      = "tickets"
+  parent_id = azapi_resource.tickets_operation.id
+
+  body = {}
+
+  depends_on = [azapi_resource.tickets_tag]
+}
+
+# Link tickets_by_id operation to Tickets tag
+resource "azapi_resource" "tickets_by_id_tickets_tag" {
+  type      = "Microsoft.ApiManagement/service/apis/operations/tags@2022-08-01"
+  name      = "tickets"
+  parent_id = azapi_resource.tickets_by_id_operation.id
+
+  body = {}
+
+  depends_on = [azapi_resource.tickets_tag]
 }
 
 # ================================================

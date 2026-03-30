@@ -182,7 +182,7 @@ function Invoke-TerraformApplyWithRetry {
         Write-Host "Applying... (Attempt $retryCount of $MaxRetries)" -ForegroundColor Yellow
 
         # Re-plan on retries to avoid "Saved plan is stale" error.
-        # Use -refresh=false to skip the APIM management-plane state refresh —
+        # Use -refresh=false to skip the APIM management-plane state refresh -
         # the Developer SKU endpoint returns 422 during platform upgrades.
         if ($retryCount -gt 1) {
             Write-Info "Refreshing Azure CLI token before retry..."
@@ -435,7 +435,7 @@ switch ($Action.ToLower()) {
         terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        # Plan — retry because APIM Developer SKU management endpoint can
+        # Plan - retry because APIM Developer SKU management endpoint can
         # return 422 transiently during or after platform maintenance.
         $planAttempt = 0
         $planSuccess = $false
@@ -465,7 +465,7 @@ switch ($Action.ToLower()) {
         terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        # Plan — retry because APIM Developer SKU management endpoint can
+        # Plan - retry because APIM Developer SKU management endpoint can
         # return 422 transiently during or after platform maintenance.
         $planAttempt = 0
         $planSuccess = $false
@@ -504,7 +504,7 @@ switch ($Action.ToLower()) {
         terraform validate
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
-        # Plan — retry because APIM Developer SKU management endpoint can
+        # Plan - retry because APIM Developer SKU management endpoint can
         # return 422 transiently during or after platform maintenance.
         $planAttempt = 0
         $planSuccess = $false

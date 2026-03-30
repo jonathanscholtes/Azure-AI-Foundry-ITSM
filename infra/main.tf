@@ -64,6 +64,68 @@ module "container_registry" {
   tags                    = local.common_tags
 }
 
+module "app_configuration" {
+  source = "./modules/app_configuration"
+
+  app_configuration_name = "appcs-${var.project_name}-${var.environment}-${var.resource_token}"
+  location               = module.resource_group.location
+  resource_group_name    = module.resource_group.name
+  identity_principal_id  = module.identity.principal_id
+  deployer_principal_id  = data.azurerm_client_config.current.object_id
+  tags                   = local.common_tags
+}
+
+# Shared Container Apps Environment - both itsm-api and itsm-ui run in the same env
+resource "azurerm_container_app_environment" "main" {
+  name                = "cae-${var.project_name}-${var.environment}-${var.resource_token}"
+  location            = module.resource_group.location
+  resource_group_name = module.resource_group.name
+  tags                = local.common_tags
+}
+
+# Grant the managed identity AcrPull so Container Apps can pull images
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = module.container_registry.id
+  role_definition_name = "AcrPull"
+  principal_id         = module.identity.principal_id
+}
+
+module "container_apps_api" {
+  source = "./modules/container_apps"
+
+  container_app_name           = var.container_app_name
+  container_app_image          = var.container_app_image
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = module.resource_group.name
+  managed_identity_id          = module.identity.id
+  managed_identity_client_id   = module.identity.client_id
+  container_registry_server    = module.container_registry.login_server
+  tags                         = local.common_tags
+
+  extra_env_vars = {
+    AZURE_APP_CONFIGURATION_ENDPOINT = module.app_configuration.endpoint
+    AZURE_AI_PROJECT_ENDPOINT        = module.ai_services.ai_project_endpoint
+    AZURE_AI_MODEL_DEPLOYMENT_NAME   = "gpt-4.1"
+  }
+
+  depends_on = [azurerm_role_assignment.acr_pull, module.app_configuration, module.ai_services]
+}
+
+module "container_apps_ui" {
+  source = "./modules/container_apps"
+
+  container_app_name           = var.container_app_ui_name
+  container_app_image          = var.container_app_ui_image
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = module.resource_group.name
+  managed_identity_id          = module.identity.id
+  managed_identity_client_id   = module.identity.client_id
+  container_registry_server    = module.container_registry.login_server
+  tags                         = local.common_tags
+
+  depends_on = [azurerm_role_assignment.acr_pull]
+}
+
 module "apim" {
   source = "./modules/apim"
 

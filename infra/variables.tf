@@ -163,6 +163,31 @@ variable "container_registry_sku" {
   default     = "Basic"
 }
 
+# Container App Variables
+variable "container_app_name" {
+  description = "Name of the API Container App"
+  type        = string
+  default     = "itsm-api"
+}
+
+variable "container_app_image" {
+  description = "Initial image for the API Container App (placeholder until ACR build)"
+  type        = string
+  default     = "mcr.microsoft.com/k8se/quickstart:latest"
+}
+
+variable "container_app_ui_name" {
+  description = "Name of the UI Container App"
+  type        = string
+  default     = "itsm-ui"
+}
+
+variable "container_app_ui_image" {
+  description = "Initial image for the UI Container App (placeholder until ACR build)"
+  type        = string
+  default     = "mcr.microsoft.com/k8se/quickstart:latest"
+}
+
 # APIM Named Value Variables (for Key Vault secret reference)
 variable "halo_auth_method" {
   description = "Authentication method for Halo ITSM API: 'apikey' or 'oauth'"

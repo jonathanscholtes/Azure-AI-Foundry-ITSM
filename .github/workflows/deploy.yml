@@ -1,0 +1,226 @@
+name: Deploy
+
+# ---------------------------------------------------------------------------
+# Runs on push to main.  Infrastructure is provisioned once via deploy.ps1;
+# this workflow only deploys code changes (container images) and agent
+# definition changes.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+
+env:
+  TF_STATE_RG: rg-tfstate-itsm
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detect which components changed so we can skip unnecessary jobs
+  # ---------------------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      api:              ${{ steps.filter.outputs.api }}
+      ui:               ${{ steps.filter.outputs.ui }}
+      agents:           ${{ steps.filter.outputs.agents }}
+      agent_kb_lookup:  ${{ steps.filter.outputs.agent_kb_lookup }}
+      agent_ticket:     ${{ steps.filter.outputs.agent_ticket }}
+      agent_triage:     ${{ steps.filter.outputs.agent_triage }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/services/itsm-api/**'
+            ui:
+              - 'apps/ui/**'
+            agents:
+              - 'agents/**'
+            agent_kb_lookup:
+              - 'agents/kb_lookup.py'
+            agent_ticket:
+              - 'agents/ticket_agent.py'
+            agent_triage:
+              - 'agents/triage_agent.py'
+
+  # ---------------------------------------------------------------------------
+  # Read Terraform outputs (read-only — no apply)
+  # ---------------------------------------------------------------------------
+  read-infra:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      resource_group_name:          ${{ steps.tf-out.outputs.resource_group_name }}
+      container_registry_server:    ${{ steps.tf-out.outputs.container_registry_server }}
+      container_app_name:           ${{ steps.tf-out.outputs.container_app_name }}
+      container_app_ui_name:        ${{ steps.tf-out.outputs.container_app_ui_name }}
+      container_app_url:            ${{ steps.tf-out.outputs.container_app_url }}
+      ai_project_endpoint:          ${{ steps.tf-out.outputs.ai_project_endpoint }}
+      apim_gateway_url:             ${{ steps.tf-out.outputs.apim_gateway_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Derive TF state storage name
+        run: |
+          SUB_ID=$(az account show --query id -o tsv)
+          SUFFIX=${SUB_ID//-/}
+          echo "TF_STATE_STORAGE=stotfitsm${SUFFIX:0:8}" >> $GITHUB_ENV
+      - name: Terraform init (read-only)
+        working-directory: infra
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ env.TF_STATE_STORAGE }}"
+      - name: Read Terraform outputs
+        id: tf-out
+        working-directory: infra
+        run: |
+          echo "resource_group_name=$(terraform output -raw resource_group_name)"                    >> $GITHUB_OUTPUT
+          echo "container_registry_server=$(terraform output -raw container_registry_login_server)"  >> $GITHUB_OUTPUT
+          echo "container_app_name=$(terraform output -raw container_app_name)"                      >> $GITHUB_OUTPUT
+          echo "container_app_ui_name=$(terraform output -raw container_app_ui_name)"                >> $GITHUB_OUTPUT
+          echo "container_app_url=$(terraform output -raw container_app_url)"                        >> $GITHUB_OUTPUT
+          echo "ai_project_endpoint=$(terraform output -raw ai_project_endpoint)"                    >> $GITHUB_OUTPUT
+          echo "apim_gateway_url=$(terraform output -raw apim_gateway_url)"                          >> $GITHUB_OUTPUT
+
+  # ---------------------------------------------------------------------------
+  # Build & push API image, then update Container App
+  # ---------------------------------------------------------------------------
+  deploy-api:
+    if: needs.changes.outputs.api == 'true'
+    needs: [changes, read-infra]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build & push API image
+        run: |
+          az acr build \
+            --registry ${{ needs.read-infra.outputs.container_registry_server }} \
+            --image itsm-api:${{ github.sha }} \
+            --file apps/services/itsm-api/Dockerfile .
+      - name: Update API Container App
+        run: |
+          az containerapp update \
+            --name  ${{ needs.read-infra.outputs.container_app_name }} \
+            --resource-group ${{ needs.read-infra.outputs.resource_group_name }} \
+            --image "${{ needs.read-infra.outputs.container_registry_server }}/itsm-api:${{ github.sha }}"
+
+  # ---------------------------------------------------------------------------
+  # Build & push UI image, then update Container App
+  # ---------------------------------------------------------------------------
+  deploy-ui:
+    if: needs.changes.outputs.ui == 'true'
+    needs: [changes, read-infra]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build & push UI image
+        run: |
+          az acr build \
+            --registry ${{ needs.read-infra.outputs.container_registry_server }} \
+            --image itsm-ui:${{ github.sha }} \
+            --file apps/ui/Dockerfile \
+            apps/ui
+      - name: Update UI Container App
+        run: |
+          az containerapp update \
+            --name  ${{ needs.read-infra.outputs.container_app_ui_name }} \
+            --resource-group ${{ needs.read-infra.outputs.resource_group_name }} \
+            --image "${{ needs.read-infra.outputs.container_registry_server }}/itsm-ui:${{ github.sha }}"
+
+  # ---------------------------------------------------------------------------
+  # Deploy Foundry agents (only the ones whose definition files changed)
+  # ---------------------------------------------------------------------------
+  deploy-agents:
+    if: needs.changes.outputs.agents == 'true'
+    needs: [changes, read-infra]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r agents/requirements.txt
+      - name: Build --only flag from changed agents
+        id: agent-list
+        run: |
+          AGENTS=""
+          if [ "${{ needs.changes.outputs.agent_kb_lookup }}" = "true" ]; then AGENTS="$AGENTS kb_lookup"; fi
+          if [ "${{ needs.changes.outputs.agent_ticket }}" = "true" ];    then AGENTS="$AGENTS ticket_agent"; fi
+          if [ "${{ needs.changes.outputs.agent_triage }}" = "true" ];    then AGENTS="$AGENTS triage_agent"; fi
+          AGENTS=$(echo "$AGENTS" | xargs)
+          echo "agents=$AGENTS" >> $GITHUB_OUTPUT
+          if [ -z "$AGENTS" ]; then
+            echo "info=Shared agent code changed – deploying all agents" >> $GITHUB_OUTPUT
+          else
+            echo "info=Deploying: $AGENTS" >> $GITHUB_OUTPUT
+          fi
+      - name: Deploy Foundry agents
+        run: |
+          echo "${{ steps.agent-list.outputs.info }}"
+          ONLY_FLAG=""
+          if [ -n "${{ steps.agent-list.outputs.agents }}" ]; then
+            ONLY_FLAG="--only ${{ steps.agent-list.outputs.agents }}"
+          fi
+
+          # Build MCP args from APIM gateway URL
+          APIM_URL="${{ needs.read-infra.outputs.apim_gateway_url }}"
+          MCP_FLAGS=""
+          if [ -n "$APIM_URL" ]; then
+            MCP_FLAGS="--mcp-server-url ${APIM_URL}/halo-itsm-mcp --mcp-server-label halo-itsm-mcp"
+          fi
+
+          python agents/deploy.py \
+            --project-endpoint  "${{ needs.read-infra.outputs.ai_project_endpoint }}" \
+            --model-deployment  gpt-4.1 \
+            $MCP_FLAGS \
+            $ONLY_FLAG
+
+  # ---------------------------------------------------------------------------
+  # Smoke test (runs after any deploy job that executed)
+  # ---------------------------------------------------------------------------
+  validate:
+    if: always() && !cancelled()
+    needs: [read-infra, deploy-api, deploy-ui, deploy-agents]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health check
+        run: |
+          curl --fail --retry 5 --retry-delay 10 \
+            "${{ needs.read-infra.outputs.container_app_url }}/health"

@@ -36,6 +36,9 @@ venv/
 .venv
 venv
 env/
+*.egg-info/
+dist/
+build/
 
 
 # Logs
@@ -46,3 +49,5 @@ Thumbs.db
 
 infra/terraform.tfvars
 workshop.md
+
+multiagent_development.md

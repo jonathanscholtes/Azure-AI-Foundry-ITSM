@@ -37,15 +37,20 @@ async def stream_workflow(message: str):
     try:
         wf = build_itsm_workflow()
         async for event in wf.run(message, stream=True):
-            if hasattr(event, "data") and hasattr(event.data, "author_name"):
+            # "output" events come from finalize/general_handler via yield_output — the final answer
+            if getattr(event, "type", None) == "output" and isinstance(event.data, str):
+                yield json.dumps({
+                    "event": "progress",
+                    "agent": event.executor_id or "",
+                    "text": event.data,
+                }) + "\n"
+            # "data" events are intermediate agent streaming updates
+            elif hasattr(event, "data") and hasattr(event.data, "author_name"):
                 # Skip internal agents (e.g. classifier) whose output is not user-facing
                 if event.data.author_name in _internal_agents:
                     continue
-                yield json.dumps({
-                    "event": "progress",
-                    "agent": event.data.author_name or "",
-                    "text": event.data.text or "",
-                }) + "\n"
+                # Skip intermediate streaming fragments — only forward if this is
+                # the specialist agent's text (non-empty, non-tool-call content)
         yield json.dumps({"event": "complete"}) + "\n"
     except Exception:
         logger.exception("Workflow error")

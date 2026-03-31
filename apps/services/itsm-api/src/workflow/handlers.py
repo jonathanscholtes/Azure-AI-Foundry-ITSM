@@ -1,14 +1,20 @@
 from typing import Any
 
 from agent_framework import (
+    Agent,
     AgentExecutorRequest,
     AgentExecutorResponse,
     Message,
     WorkflowContext,
     executor,
 )
+from agent_framework.azure import AzureAIClient
 
 from .models import ClassificationResult
+
+
+# Set by pipeline.py at init time so the kb_and_ticket handler can call both agents
+_kb_and_ticket_config: dict = {}
 
 
 def get_intent_case(expected_intent: str):
@@ -63,6 +69,67 @@ async def to_triage_agent(
 ) -> None:
     """Transform classifier output into a request for the Triage agent."""
     await _forward_to_specialist(response, ctx)
+
+
+@executor(id="to_kb_and_ticket")
+async def to_kb_and_ticket(
+    response: AgentExecutorResponse, ctx: WorkflowContext[None, str]
+) -> None:
+    """Fan-out: call both KB lookup and ticket agents, combine results."""
+    result = ClassificationResult.model_validate_json(response.agent_response.text)
+    user_msg = result.user_message
+
+    cfg = _kb_and_ticket_config
+    credential = cfg["credential"]
+    endpoint = cfg["project_endpoint"]
+    kb_name = cfg["kb_agent_name"]
+    ticket_name = cfg["ticket_agent_name"]
+
+    parts: list[str] = []
+
+    # Call KB lookup agent
+    try:
+        kb_agent = Agent(
+            client=AzureAIClient(
+                project_endpoint=endpoint,
+                credential=credential,
+                agent_name=kb_name,
+                use_latest_version=True,
+            ),
+            name=kb_name,
+        )
+        kb_resp = await kb_agent.run(
+            messages=[Message(role="user", contents=[user_msg])]
+        )
+        kb_text = (kb_resp.text or "").strip() if kb_resp else ""
+        if kb_text and "unable to find" not in kb_text.lower():
+            parts.append(f"**Knowledge Base Results:**\n\n{kb_text}")
+    except Exception:
+        pass
+
+    # Call ticket agent
+    try:
+        ticket_agent = Agent(
+            client=AzureAIClient(
+                project_endpoint=endpoint,
+                credential=credential,
+                agent_name=ticket_name,
+                use_latest_version=True,
+            ),
+            name=ticket_name,
+        )
+        ticket_resp = await ticket_agent.run(
+            messages=[Message(role="user", contents=[user_msg])]
+        )
+        if ticket_resp and ticket_resp.text and ticket_resp.text.strip():
+            parts.append(f"**Ticket System Results:**\n\n{ticket_resp.text.strip()}")
+    except Exception:
+        pass
+
+    if parts:
+        await ctx.yield_output("\n\n---\n\n".join(parts))
+    else:
+        await ctx.yield_output("No results found in the knowledge base or ticket system.")
 
 
 @executor(id="finalize")

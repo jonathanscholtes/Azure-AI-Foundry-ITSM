@@ -235,8 +235,25 @@ if ($aiProjectEndpoint) {
     # Pass MCP config if APIM is configured
     $apimGatewayUrl = $tfOutputs["apim_gateway_url"]
     if ($apimGatewayUrl) {
-        $agentParams.McpServerUrl = "$apimGatewayUrl/halo-itsm-mcp"
+        $agentParams.McpServerUrl = "$apimGatewayUrl/halo-itsm-mcp/mcp"
         $agentParams.McpServerLabel = "halo-itsm-mcp"
+    }
+
+    # Fetch APIM subscription key via Azure REST API (listSecrets).
+    # Terraform cannot export APIM subscription keys, so we call the ARM API directly.
+    $apimName = $tfOutputs["apim_name"]
+    if ($apimName) {
+        Write-Host "  Retrieving APIM subscription key..." -ForegroundColor Gray
+        $subId = (az account show --query id -o tsv)
+        $secretsUri = "/subscriptions/$subId/resourceGroups/$rgName" +
+                      "/providers/Microsoft.ApiManagement/service/$apimName" +
+                      "/subscriptions/ai-agent-subscription/listSecrets?api-version=2022-08-01"
+        $apimSubKey = (az rest --method post --uri $secretsUri 2>$null | ConvertFrom-Json).primaryKey
+        if ($apimSubKey) {
+            $agentParams.ApimSubscriptionKey = $apimSubKey
+        } else {
+            Write-Host "  [Warning] Could not retrieve APIM subscription key - agents will be deployed without MCP tools." -ForegroundColor Yellow
+        }
     }
 
     & "$PSScriptRoot/scripts/Deploy-FoundryAgents.ps1" @agentParams

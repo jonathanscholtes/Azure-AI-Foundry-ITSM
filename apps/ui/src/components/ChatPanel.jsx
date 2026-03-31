@@ -10,6 +10,8 @@ import BugReportIcon from '@mui/icons-material/BugReport'
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber'
 import SearchIcon from '@mui/icons-material/ManageSearch'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 
 const AGENT_LABELS = {
   classifier: 'Classifier',
@@ -39,7 +41,7 @@ const QUICK_ACTIONS = [
     label: 'Triage Issue',
     description: 'Diagnose and troubleshoot problems',
     color: '#F59E0B',
-    prompt: 'My laptop is running very slow and applications keep freezing. Help me troubleshoot.',
+    prompt: 'Issues with Teams performance.',
   },
 ]
 
@@ -112,7 +114,7 @@ function MessageBubble({ msg }) {
           {isUser ? (
             <Typography variant="body2">{msg.text}</Typography>
           ) : (
-            <ReactMarkdown>{msg.text || '...'}</ReactMarkdown>
+            <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]}>{msg.text || '...'}</ReactMarkdown>
           )}
         </Paper>
       </Box>

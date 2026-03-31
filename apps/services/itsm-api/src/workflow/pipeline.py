@@ -7,9 +7,11 @@ from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 
 from .classifier import create_classifier
 from .handlers import (
+    _kb_and_ticket_config,
     finalize,
     general_handler,
     get_intent_case,
+    to_kb_and_ticket,
     to_kb_lookup,
     to_ticket_agent,
     to_triage_agent,
@@ -85,6 +87,15 @@ def init_workflow() -> set[str]:
     _project_endpoint = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
     _agent_names = _resolve_agent_names(_credential)
     _internal_agents = {_agent_names["CLASSIFIER_AGENT_NAME"]}
+
+    # Provide credentials to the kb_and_ticket fan-out handler
+    _kb_and_ticket_config.update({
+        "credential": _credential,
+        "project_endpoint": _project_endpoint,
+        "kb_agent_name": _agent_names["KB_LOOKUP_AGENT_NAME"],
+        "ticket_agent_name": _agent_names["TICKET_AGENT_NAME"],
+    })
+
     return _internal_agents
 
 
@@ -151,6 +162,10 @@ def build_itsm_workflow():
                 Case(
                     condition=get_intent_case("ticket"),
                     target=to_ticket_agent,
+                ),
+                Case(
+                    condition=get_intent_case("kb_and_ticket"),
+                    target=to_kb_and_ticket,
                 ),
                 Case(
                     condition=get_intent_case("triage"),

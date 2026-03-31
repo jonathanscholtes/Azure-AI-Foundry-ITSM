@@ -81,7 +81,7 @@ class AgentDeployer:
         self.apim_subscription_key = apim_subscription_key
         self.app_config_endpoint   = app_config_endpoint
 
-        credential = DefaultAzureCredential()
+        credential = DefaultAzureCredential(process_timeout=120)
 
         self.project_client = AIProjectClient(
             endpoint=project_endpoint,

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class ClassificationResult(BaseModel):
     """Structured output from the classifier agent."""
 
-    intent: Literal["kb_lookup", "ticket", "triage", "general"]
+    intent: Literal["kb_lookup", "ticket", "kb_and_ticket", "triage", "general"]
     reason: str
     user_message: str  # Pass through for downstream agents
 

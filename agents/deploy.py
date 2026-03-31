@@ -2,7 +2,7 @@
 Deploy ITSM Foundry Agents.
 
 Creates or updates the three ITSM agents in the Microsoft Foundry project
-and outputs their IDs as JSON lines for consumption by Deploy-FoundryAgents.ps1.
+and stores their names in Azure App Configuration for container app consumption.
 
 Agents are defined as individual modules under the ``agents`` package:
   - agents.kb_lookup     : searches Halo ITSM KB articles via MCP/APIM
@@ -38,13 +38,14 @@ from azure.ai.projects.models import MCPTool, PromptAgentDefinition
 from azure.appconfiguration import AzureAppConfigurationClient, ConfigurationSetting
 from azure.identity import DefaultAzureCredential
 
-from agents import kb_lookup, ticket_agent, triage_agent
+from agents import classifier, kb_lookup, ticket_agent, triage_agent
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 # Map of short name -> module (used by --only filter)
 AGENT_MODULE_MAP = {
+    "classifier":    classifier,
     "kb_lookup":     kb_lookup,
     "ticket_agent":  ticket_agent,
     "triage_agent":  triage_agent,
@@ -205,16 +206,15 @@ class AgentDeployer:
                     "env_var": agent_mod.ENV_VAR,
                 }))
 
-            # Write agent IDs to App Configuration for container app consumption
+            # Write agent names to App Configuration for container app consumption
             if self.app_config_client:
-                logger.info("Writing agent IDs to App Configuration...")
+                logger.info("Writing agent names to App Configuration...")
                 for agent_mod in modules:
-                    aid = results.get(agent_mod.NAME)
-                    if aid:
-                        self.app_config_client.set_configuration_setting(
-                            ConfigurationSetting(key=agent_mod.ENV_VAR, value=aid)
-                        )
-                        logger.info("  App Config  %-25s = %s", agent_mod.ENV_VAR, aid)
+                    name = agent_mod.NAME
+                    self.app_config_client.set_configuration_setting(
+                        ConfigurationSetting(key=agent_mod.ENV_VAR, value=name)
+                    )
+                    logger.info("  App Config  %-25s = %s", agent_mod.ENV_VAR, name)
             else:
                 logger.info("App Configuration endpoint not provided - skipping config store write.")
 
@@ -258,7 +258,7 @@ def main():
     parser.add_argument(
         "--app-config-endpoint",
         default=os.environ.get("AZURE_APP_CONFIGURATION_ENDPOINT", ""),
-        help="Azure App Configuration endpoint for storing agent IDs.",
+        help="Azure App Configuration endpoint for storing agent names.",
     )
     parser.add_argument(
         "--only",

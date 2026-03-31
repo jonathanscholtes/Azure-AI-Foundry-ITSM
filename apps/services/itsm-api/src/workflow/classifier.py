@@ -1,29 +1,23 @@
 from agent_framework import Agent
-from agent_framework.azure import AzureAIAgentClient
-
-from .models import ClassificationResult
-
-CLASSIFIER_INSTRUCTIONS = """\
-You are an intent classifier for an IT Service Desk. Classify the user's \
-request into exactly one of the following intents:
-
-- kb_lookup: Questions about how to do something, troubleshooting steps, \
-documentation lookups, "how do I" questions
-- ticket: Requests to search, view, create, or update support tickets
-- triage: Requests to classify, prioritize, assign, escalate, or route an \
-issue or ticket to a team
-- general: Greetings, meta-questions about your capabilities, or anything \
-that does not fit the above categories
-
-Return JSON with fields: intent, reason, user_message (echo the original \
-message exactly).
-"""
+from agent_framework.azure import AzureAIClient
 
 
-def create_classifier(client: AzureAIAgentClient) -> Agent:
-    """Create the intent classifier — runs locally, not deployed to Foundry."""
-    return client.as_agent(
-        name="Classifier",
-        instructions=CLASSIFIER_INSTRUCTIONS,
-        response_format=ClassificationResult,
+def create_classifier(
+    project_endpoint: str,
+    credential,
+    agent_name: str,
+) -> Agent:
+    """Create the intent classifier referencing a Foundry-deployed agent.
+
+    The agent instructions live server-side and already request JSON output.
+    Handlers parse the response via ``ClassificationResult.model_validate_json``.
+    """
+    return Agent(
+        client=AzureAIClient(
+            project_endpoint=project_endpoint,
+            credential=credential,
+            agent_name=agent_name,
+            use_latest_version=True,
+        ),
+        name=agent_name,
     )

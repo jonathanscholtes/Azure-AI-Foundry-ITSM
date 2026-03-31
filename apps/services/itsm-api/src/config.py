@@ -11,13 +11,14 @@ class Settings(BaseSettings):
     azure_ai_project_endpoint: str
     azure_ai_model_deployment_name: str = Field(default="gpt-4.1")
 
-    # Azure App Configuration (agent IDs are read from here at startup)
+    # Azure App Configuration (agent names are read from here at startup)
     azure_app_configuration_endpoint: str = Field(default="")
 
-    # Specialist agent IDs — optional when using App Configuration
-    kb_lookup_agent_id: str = Field(default="")
-    ticket_agent_id: str = Field(default="")
-    triage_agent_id: str = Field(default="")
+    # Agent names — optional when using App Configuration
+    classifier_agent_name: str = Field(default="")
+    kb_lookup_agent_name: str = Field(default="")
+    ticket_agent_name: str = Field(default="")
+    triage_agent_name: str = Field(default="")
 
     # Managed identity (optional — auto-detected in Container Apps)
     azure_client_id: str = Field(default="")

@@ -1,6 +1,6 @@
 # Deploy-FoundryAgents.ps1
 # Creates/versions ITSM agents in Microsoft Foundry via Python SDK.
-# Agent IDs are written to Azure App Configuration for container app consumption.
+# Agent names are written to Azure App Configuration for container app consumption.
 #
 # Usage:
 #   .\Deploy-FoundryAgents.ps1 -AiProjectEndpoint <endpoint> -AppConfigEndpoint <endpoint>

@@ -1,5 +1,5 @@
 NAME = "itsm-triage-agent"
-ENV_VAR = "TRIAGE_AGENT_ID"
+ENV_VAR = "TRIAGE_AGENT_NAME"
 USES_MCP = True
 
 INSTRUCTIONS = """\

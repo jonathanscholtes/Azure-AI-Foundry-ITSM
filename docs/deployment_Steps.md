@@ -200,8 +200,8 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    |---|---|
    | **Name** | `Halo-ITSM-MCP` |
    | **API** | `Halo ITSM API` *(the API deployed by Terraform)* |
-   | **Tools** | Select both operations: `knowledgebase` (GET /KBArticle) and `knowledgebasebyid` (GET /KBArticle/{id}) |
-   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows.` |
+   | **Tools** | Select all four operations: `knowledgebase` (GET /KBArticle), `knowledgebasebyid` (GET /KBArticle/{id}), `tickets` (GET /Tickets), and `ticketsbyid` (GET /Tickets/{id}) |
+   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles, list and look up support tickets, and access service desk data for IT support and incident-response workflows.` |
 
 5. Under **Subscription**, check **Subscription required** and verify the key names:
 

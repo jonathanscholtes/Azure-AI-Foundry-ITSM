@@ -1,5 +1,5 @@
 NAME = "itsm-ticket-agent"
-ENV_VAR = "TICKET_AGENT_ID"
+ENV_VAR = "TICKET_AGENT_NAME"
 USES_MCP = True
 
 INSTRUCTIONS = """\

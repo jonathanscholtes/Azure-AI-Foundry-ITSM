@@ -7,20 +7,20 @@ from fastapi.responses import StreamingResponse
 
 from .config import Settings
 from .models import ChatRequest, HealthResponse
-from .workflow.pipeline import build_itsm_workflow
+from .workflow.pipeline import build_itsm_workflow, init_workflow
 
 logger = logging.getLogger(__name__)
 
 settings = Settings()
-workflow = None
+_internal_agents: set[str] = set()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global workflow
-    logger.info("Building ITSM workflow...")
-    workflow = build_itsm_workflow()
-    logger.info("Workflow ready")
+    global _internal_agents
+    logger.info("Initialising ITSM workflow...")
+    _internal_agents = init_workflow()
+    logger.info("Workflow ready  (internal agents hidden from UI: %s)", _internal_agents)
     yield
     logger.info("Shutting down")
 
@@ -35,8 +35,12 @@ app = FastAPI(
 async def stream_workflow(message: str):
     yield json.dumps({"event": "progress", "agent": "classifier", "status": "running"}) + "\n"
     try:
-        async for event in workflow.run(message, stream=True):
+        wf = build_itsm_workflow()
+        async for event in wf.run(message, stream=True):
             if hasattr(event, "data") and hasattr(event.data, "author_name"):
+                # Skip internal agents (e.g. classifier) whose output is not user-facing
+                if event.data.author_name in _internal_agents:
+                    continue
                 yield json.dumps({
                     "event": "progress",
                     "agent": event.data.author_name or "",

@@ -25,7 +25,7 @@ const QUICK_ACTIONS = [
     label: 'Search KB',
     description: 'Find solutions in the knowledge base',
     color: '#0078D4',
-    prompt: 'My VPN keeps disconnecting every 30 minutes. Is there a known fix?',
+    prompt: 'How do I reset my corporate password?',
   },
   {
     icon: <ConfirmationNumberIcon />,

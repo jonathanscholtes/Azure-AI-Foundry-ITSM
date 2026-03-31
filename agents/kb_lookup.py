@@ -1,5 +1,5 @@
 NAME = "itsm-kb-lookup"
-ENV_VAR = "KB_LOOKUP_AGENT_ID"
+ENV_VAR = "KB_LOOKUP_AGENT_NAME"
 USES_MCP = True
 
 INSTRUCTIONS = """\

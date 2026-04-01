@@ -28,3 +28,6 @@ class Settings(BaseSettings):
 
     # APIM
     apim_subscription_key: str = Field(default="")
+
+    # CORS — comma-separated allowed origins for the embeddable widget
+    cors_allowed_origins: str = Field(default="")

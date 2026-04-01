@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from .config import Settings
@@ -29,6 +30,18 @@ app = FastAPI(
     title="ITSM Service Desk API",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+cors_allowed_origins = [origin.strip() for origin in settings.cors_allowed_origins.split(",") if origin.strip()]
+if not cors_allowed_origins:
+    cors_allowed_origins = ["*"]
+
+# CORS — allow the embeddable widget to call from any origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_allowed_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

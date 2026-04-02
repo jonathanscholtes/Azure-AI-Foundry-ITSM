@@ -21,10 +21,10 @@ dependencies = [
     "azure-ai-projects>=2.0.0",
     "azure-appconfiguration>=1.7.0",
 
-    # Agent Framework (pre-release)
-    "agent-framework-core>=1.0.0rc6",
-    "agent-framework-azure-ai>=1.0.0rc6",
-    "agent-framework-orchestrations",
+    # Agent Framework – pinned to rc6-compatible set (core 1.0.0 GA has breaking changes)
+    "agent-framework-core==1.0.0rc6",
+    "agent-framework-azure-ai==1.0.0rc6",
+    "agent-framework-orchestrations==1.0.0b260330",
 ]
 
 [tool.hatch.build.targets.wheel]

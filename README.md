@@ -4,6 +4,8 @@ A production-style reference implementation showing how to build **multi-agent I
 
 The patterns demonstrated here — classifier-based routing, fan-out to parallel agents, MCP tool integration through a secure gateway — are **reusable building blocks** applicable to any domain where AI agents need governed access to enterprise systems.
 
+<img src="media/embedded_agent.png" alt="Embedded ITSM AI Assistant" width="320" />
+
 ---
 
 ## Architecture

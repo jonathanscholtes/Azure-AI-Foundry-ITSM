@@ -19,7 +19,10 @@ param (
     [string]$HaloBaseUrl,
 
     [Parameter(Mandatory=$false)]
-    [string]$HaloAuthUrl
+    [string]$HaloAuthUrl,
+
+    [Parameter(Mandatory=$false)]
+    [string]$TfStateStorageAccount = ""
 )
 
 # PowerShell 5.1 compatibility - $IsWindows/$IsMacOS/$IsLinux are only automatic in PS 7+
@@ -154,9 +157,14 @@ function Test-Prerequisites {
 }
 
 function Initialize-Terraform {
+    param(
+        [string]$StorageAccount
+    )
     Write-Title "Initializing Terraform"
     
-    terraform init
+    terraform init `
+        -backend-config="storage_account_name=$StorageAccount" `
+        -reconfigure
     
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Terraform initialized successfully"
@@ -234,13 +242,36 @@ if (-not (Test-Prerequisites)) {
     exit 1
 }
 
+# Resolve subscription ID and TF state storage account name
+$subscriptionId = az account show --query id -o tsv 2>$null
+$tenantId       = az account show --query tenantId -o tsv 2>$null
+
+# Expose ARM_TENANT_ID and ARM_SUBSCRIPTION_ID so the azurerm backend's
+# AzureCli authorizer can resolve the tenant without prompting for login.
+$env:ARM_TENANT_ID       = $tenantId
+$env:ARM_SUBSCRIPTION_ID = $subscriptionId
+
+# Derive storage account name from subscription ID if not supplied
+if (-not $TfStateStorageAccount) {
+    $suffix = ($subscriptionId -replace '-', '').Substring(0, 8).ToLower()
+    $TfStateStorageAccount = "stotfitsm$suffix"
+}
+Write-Info "TF state storage account: $TfStateStorageAccount"
+
 # Handle destroy action
 if ($Action -eq "destroy") {
     $infraDir = Join-Path $PSScriptRoot "../infra"
     Set-Location -Path $infraDir
 
-    # Resolve subscription ID for fallback RG deletion
-    $subscriptionId = az account show --query id -o tsv 2>$null
+    # Initialize Terraform with remote backend before destroy
+    Write-Title "Initializing Terraform"
+    terraform init `
+        -backend-config="storage_account_name=$TfStateStorageAccount" `
+        -reconfigure
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Terraform initialization failed"
+        exit 1
+    }
 
     Write-Title "Destroying Resources"
     Write-Host "WARNING: All resources created by Terraform will be permanently deleted!" -ForegroundColor Red
@@ -371,15 +402,7 @@ if ($Action -eq "destroy") {
     exit 0
 }
 
-# Get subscription ID (auth already set by orchestrator's Initialize-AzureContext)
-if ($Action -in @("init", "plan", "apply", "all", "validate")) {
-    Write-Info "Preparing for deployment action: $Action"
-    $subscriptionId = Get-SubscriptionId
-    if (-not $subscriptionId) {
-        Write-Error "Failed to determine subscription. Was Initialize-AzureContext called?"
-        exit 1
-    }
-}
+# subscriptionId already resolved above for all actions
 
 # Change to infra directory (restore on exit via finally block)
 $infraDir = Join-Path $PSScriptRoot "../infra"
@@ -408,7 +431,9 @@ Write-Info "Executing terraform action: $Action"
 switch ($Action.ToLower()) {
     "init" {
         Write-Title "Initializing Terraform"
-        terraform init
+        terraform init `
+            -backend-config="storage_account_name=$TfStateStorageAccount" `
+            -reconfigure
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Terraform initialization failed"
             exit 1
@@ -417,7 +442,7 @@ switch ($Action.ToLower()) {
     }
     "validate" {
         Write-Title "Validating Terraform Configuration"
-        Initialize-Terraform
+        Initialize-Terraform -StorageAccount $TfStateStorageAccount
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         terraform validate
@@ -429,7 +454,7 @@ switch ($Action.ToLower()) {
     }
     "plan" {
         Write-Title "Planning Terraform Deployment"
-        Initialize-Terraform
+        Initialize-Terraform -StorageAccount $TfStateStorageAccount
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         terraform validate
@@ -459,7 +484,7 @@ switch ($Action.ToLower()) {
     }
     "apply" {
         Write-Title "Applying Terraform Configuration"
-        Initialize-Terraform
+        Initialize-Terraform -StorageAccount $TfStateStorageAccount
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         terraform validate
@@ -496,7 +521,9 @@ switch ($Action.ToLower()) {
         
         # Init
         Write-Info "Step 1/4: Initializing..."
-        terraform init
+        terraform init `
+            -backend-config="storage_account_name=$TfStateStorageAccount" `
+            -reconfigure
         if ($LASTEXITCODE -ne 0) { exit 1 }
         
         # Validate

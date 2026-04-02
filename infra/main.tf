@@ -1,3 +1,24 @@
+terraform {
+  # Partial backend configuration — storage account name is supplied at
+  # 'terraform init' time via -backend-config so the same code works locally
+  # and in GitHub Actions without committing secrets.
+  #
+  # Bootstrap the state backend once before first deploy:
+  #   az group create -n rg-tfstate-itsm -l eastus2
+  #   az storage account create -n <name> -g rg-tfstate-itsm --sku Standard_LRS
+  #   az storage container create -n tfstate --account-name <name>
+  #
+  # Then init with:
+  #   terraform init -backend-config="storage_account_name=<name>"
+  backend "azurerm" {
+    resource_group_name = "rg-tfstate-itsm"
+    container_name      = "tfstate"
+    key                 = "itsm.tfstate"
+    use_azuread_auth    = true
+    # storage_account_name supplied via -backend-config at init time
+  }
+}
+
 module "resource_group" {
   source = "./modules/resource_group"
 

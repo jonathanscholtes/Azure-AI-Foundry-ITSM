@@ -126,12 +126,18 @@ if ($existing) {
         issuer    = "https://token.actions.githubusercontent.com"
         subject   = $credSubject
         audiences = @("api://AzureADTokenExchange")
-    } | ConvertTo-Json -Compress
+    } | ConvertTo-Json -Depth 5
+
+    # Write JSON to a temp file — avoids PowerShell/az CLI quoting issues
+    $tempFile = [System.IO.Path]::GetTempFileName() + ".json"
+    $credBody | Out-File -FilePath $tempFile -Encoding utf8
 
     az ad app federated-credential create `
         --id $clientId `
-        --parameters $credBody `
+        --parameters "@$tempFile" `
         --output none
+
+    Remove-Item $tempFile -Force
 
     Write-Host "  Federated credential created (subject: $credSubject)." -ForegroundColor Green
 }

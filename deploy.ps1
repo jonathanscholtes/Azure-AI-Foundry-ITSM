@@ -41,6 +41,21 @@ param (
     [Parameter(Mandatory=$false)]
     [switch]$Destroy,
 
+    # Terraform remote state — storage account must be globally unique.
+    # Defaults to 'stotfitsm' + first 8 hex chars of the subscription ID,
+    # giving a stable name that's unique per subscription (e.g. stotfitsm71dcf7f8).
+    # Override with -TfStateStorageAccount if needed.
+    [Parameter(Mandatory=$false)]
+    [string]$TfStateStorageAccount = "",
+
+    [Parameter(Mandatory=$false)]
+    [string]$TfStateResourceGroup = "rg-tfstate-itsm",
+
+    # Skip Phase 0 (TF backend bootstrap) when the storage account and role
+    # assignment already exist from a previous deploy.
+    [Parameter(Mandatory=$false)]
+    [switch]$SkipBootstrap,
+
     # Run New-GitHubOidc.ps1 to create/update the Entra app registration and
     # set the 3 GitHub Actions secrets automatically. Requires 'gh' CLI.
     [Parameter(Mandatory=$false)]
@@ -82,6 +97,109 @@ Write-Host @"
 # Initialize Azure context
 Initialize-AzureContext -Subscription $Subscription
 
+# Resolve TfStateStorageAccount default from subscription ID (deterministic, unique per subscription)
+if (-not $TfStateStorageAccount) {
+    $subId = az account show --query id -o tsv 2>$null
+    $suffix = ($subId -replace '-', '').Substring(0, 8).ToLower()
+    $TfStateStorageAccount = "stotfitsm$suffix"
+}
+
+# ---------------------------------------------------------------------------
+# PHASE 0: Bootstrap Terraform remote state backend
+# (idempotent — safe to run every deploy; skip with -SkipBootstrap after first run)
+# Not needed for destroy — the backend must already exist.
+# ---------------------------------------------------------------------------
+if ($Destroy -or $SkipBootstrap) {
+    Write-Host "`n=== PHASE 0: Skipped ===" -ForegroundColor DarkGray
+} else {
+Write-Host "`n=== PHASE 0: Terraform State Backend Bootstrap ===" -ForegroundColor Magenta
+
+Write-Host "  Resource group : $TfStateResourceGroup" -ForegroundColor Cyan
+Write-Host "  Storage account: $TfStateStorageAccount" -ForegroundColor Cyan
+
+az group create `
+    --name $TfStateResourceGroup `
+    --location $Location `
+    --output none
+
+az storage account create `
+    --name $TfStateStorageAccount `
+    --resource-group $TfStateResourceGroup `
+    --sku Standard_LRS `
+    --allow-blob-public-access false `
+    --min-tls-version TLS1_2 `
+    --output none
+
+# Assign Storage Blob Data Contributor to the current user BEFORE creating the
+# container — subscription policy may disable shared key access, so AAD data-plane
+# permission must exist first. (idempotent)
+$currentUserId = az ad signed-in-user show --query id -o tsv 2>$null
+$storageId     = az storage account show `
+                     --name $TfStateStorageAccount `
+                     --resource-group $TfStateResourceGroup `
+                     --query id -o tsv
+
+if ($currentUserId -and $storageId) {
+    Write-Host "  Assigning Storage Blob Data Contributor to current user (idempotent)..." -ForegroundColor Cyan
+    az role assignment create `
+        --assignee $currentUserId `
+        --role "Storage Blob Data Contributor" `
+        --scope $storageId `
+        --output none 2>&1 | Out-Null
+
+    # Poll until the role is actually effective (RBAC can take up to 5 minutes to propagate)
+    Write-Host "  Waiting for role assignment to propagate..." -ForegroundColor Gray
+    $maxWait = 300
+    $waited  = 0
+    $interval = 10
+    $ready = $false
+    while (-not $ready -and $waited -lt $maxWait) {
+        try {
+            $null = az storage container list `
+                --account-name $TfStateStorageAccount `
+                --auth-mode login `
+                --output none `
+                --only-show-errors 2>$null
+            if ($LASTEXITCODE -eq 0) { $ready = $true }
+        } catch { }
+
+        if (-not $ready) {
+            Write-Host "  Still propagating... ($waited s elapsed)" -ForegroundColor Gray
+            Start-Sleep -Seconds $interval
+            $waited += $interval
+        }
+    }
+    if (-not $ready) {
+        Write-Host "WARNING: Role assignment may not have propagated after ${maxWait}s - continuing anyway." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Role assignment effective after ${waited}s." -ForegroundColor Green
+    }
+}
+
+az storage container create `
+    --name tfstate `
+    --account-name $TfStateStorageAccount `
+    --auth-mode login `
+    --output none
+
+# Grant Storage Blob Data Contributor to the GitHub Actions SP (if it exists)
+# so the CI/CD workflow can read Terraform state via the azurerm backend.
+$ghApp = az ad app list --display-name "sp-itsm-github" --query "[0].appId" -o tsv 2>$null
+if ($ghApp) {
+    $ghSpId = az ad sp show --id $ghApp --query id -o tsv 2>$null
+    if ($ghSpId -and $storageId) {
+        Write-Host "  Granting Storage Blob Data Contributor to GitHub SP (idempotent)..." -ForegroundColor Cyan
+        az role assignment create `
+            --assignee $ghSpId `
+            --role "Storage Blob Data Contributor" `
+            --scope $storageId `
+            --output none 2>&1 | Out-Null
+    }
+}
+
+Write-Host "State backend ready." -ForegroundColor Green
+} # end -not SkipBootstrap
+
 if ($Destroy) {
     # ===== DESTROY MODE =====
     Write-Host "`n=== Destroying Infrastructure ===" -ForegroundColor Red
@@ -90,7 +208,8 @@ if ($Destroy) {
         -Action "destroy" `
         -Subscription $Subscription `
         -Location $Location `
-        -Environment $Environment
+        -Environment $Environment `
+        -TfStateStorageAccount $TfStateStorageAccount
 
     if (-not $? -or $LASTEXITCODE -ne 0) {
         Write-Host "Infrastructure destruction failed" -ForegroundColor Red
@@ -107,11 +226,12 @@ if ($Destroy) {
 Write-Host "`n=== PHASE 1: Infrastructure Deployment ===" -ForegroundColor Magenta
 
 $infraParams = @{
-    Action       = $Action
-    Subscription = $Subscription
-    Location     = $Location
-    Environment  = $Environment
-    HaloBaseUrl  = $HaloBaseUrl
+    Action                 = $Action
+    Subscription           = $Subscription
+    Location               = $Location
+    Environment            = $Environment
+    HaloBaseUrl            = $HaloBaseUrl
+    TfStateStorageAccount  = $TfStateStorageAccount
 }
 if ($HaloAuthMethod -eq "oauth" -and $HaloAuthUrl) {
     $infraParams.HaloAuthUrl = $HaloAuthUrl

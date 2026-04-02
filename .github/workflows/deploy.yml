@@ -80,6 +80,9 @@ jobs:
           echo "TF_STATE_STORAGE=stotfitsm${SUFFIX:0:8}" >> $GITHUB_ENV
       - name: Terraform init (read-only)
         working-directory: infra
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
           terraform init \
             -backend-config="storage_account_name=${{ env.TF_STATE_STORAGE }}"

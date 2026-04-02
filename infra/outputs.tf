@@ -31,6 +31,27 @@ output "container_registry_login_server" {
   value       = module.container_registry.login_server
 }
 
+# Container App Outputs
+output "container_app_url" {
+  description = "HTTPS URL of the ITSM API Container App"
+  value       = module.container_apps_api.url
+}
+
+output "container_app_name" {
+  description = "Name of the ITSM API Container App"
+  value       = module.container_apps_api.name
+}
+
+output "container_app_ui_url" {
+  description = "HTTPS URL of the ITSM UI Container App"
+  value       = module.container_apps_ui.url
+}
+
+output "container_app_ui_name" {
+  description = "Name of the ITSM UI Container App"
+  value       = module.container_apps_ui.name
+}
+
 # Key Vault Outputs
 output "key_vault_id" {
   description = "ID of the Key Vault"
@@ -89,12 +110,6 @@ output "apim_portal_url" {
   value       = module.apim.portal_url
 }
 
-output "apim_subscription_key" {
-  description = "Primary subscription key for the AI Agent APIM subscription (use as Ocp-Apim-Subscription-Key header)"
-  value       = module.apim.ai_agent_subscription_primary_key
-  sensitive   = true
-}
-
 # AI Foundry Outputs
 output "ai_account_id" {
   description = "ID of the AI Services account"
@@ -126,6 +141,11 @@ output "ai_project_name" {
   value       = module.ai_services.ai_project_name
 }
 
+output "ai_project_endpoint" {
+  description = "Foundry project endpoint for the AI Project (services.ai.azure.com)"
+  value       = module.ai_services.ai_project_endpoint
+}
+
 # Identity Outputs
 output "managed_identity_id" {
   description = "ID of the user-assigned managed identity for all services"
@@ -140,6 +160,17 @@ output "managed_identity_principal_id" {
 output "managed_identity_client_id" {
   description = "Client ID of the user-assigned managed identity"
   value       = module.identity.client_id
+}
+
+# App Configuration Outputs
+output "app_configuration_endpoint" {
+  description = "Endpoint of the App Configuration store"
+  value       = module.app_configuration.endpoint
+}
+
+output "app_configuration_name" {
+  description = "Name of the App Configuration store"
+  value       = module.app_configuration.name
 }
 
 # Monitoring Outputs

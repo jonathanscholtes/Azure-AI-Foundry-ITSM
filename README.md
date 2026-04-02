@@ -1,195 +1,84 @@
-# Microsoft Foundry ITSM - Service Desk Agents
+# Agentic Service Desk — Microsoft Foundry + MCP Reference Architecture
 
-A reference implementation demonstrating how to build agentic service desk integrations using:
+A production-style reference implementation showing how to build **multi-agent IT service desk automation** using Microsoft Foundry, the Agent Framework SDK, Model Context Protocol (MCP), and Azure API Management.
 
-- **Microsoft Foundry** — AI agent orchestration and tool invocation
-- **Model Context Protocol (MCP)** — standard interface for exposing enterprise capabilities as agent tools
-- **Azure API Management** — secure, governed gateway between agents and backend systems
-- **Halo ITSM** — example enterprise system integrated through MCP
+The patterns demonstrated here — classifier-based routing, fan-out to parallel agents, MCP tool integration through a secure gateway — are **reusable building blocks** applicable to any domain where AI agents need governed access to enterprise systems.
 
 ---
 
-## What This Repository Demonstrates
+## Architecture
 
-This repository demonstrates how **agentic AI solutions can securely integrate with enterprise systems** using Microsoft Foundry, Model Context Protocol (MCP), and Azure API Management.
+![Architecture Diagram](media/design2.png)
 
-The scenario models a **service desk automation agent** that can:
+### Workflow
 
-- Retrieve knowledge from an ITSM knowledge base
-- Invoke enterprise tools exposed through MCP
-- Route requests securely through Azure API Management
-- Use Microsoft Foundry agents to orchestrate tool calls
+```
+React UI → FastAPI (Container App) → Agent Framework Workflow
+                                        ├─ Classifier Agent (Foundry)
+                                        ├─ KB Lookup Agent (Foundry + MCP)
+                                        ├─ Ticket Agent (Foundry + MCP)
+                                        └─ Triage Agent (Foundry + MCP)
+                                              │
+                                        APIM (MCP Gateway) → Halo ITSM API
+```
 
-The environment is pre-configured to support **agent configuration, MCP tool registration, and end-to-end testing**.
+### Azure Resources
+
+| Component | Service | Role |
+|---|---|---|
+| Agent orchestration | Microsoft Foundry (GPT-4.1 / GPT-4.1-mini) | Hosts all agents with server-side instructions; classifier uses GPT-4.1-mini for lower latency |
+| Workflow engine | Agent Framework SDK | Switch-case routing, fan-out, streaming |
+| API backend | Azure Container Apps (FastAPI) | Workflow gateway, NDJSON streaming |
+| Frontend | Azure Container Apps (React/Vite) | Service desk UI |
+| Tool gateway | Azure API Management | Exposes Halo ITSM as MCP tools with policies |
+| Agent name store | Azure App Configuration | Runtime agent name resolution |
+| Container images | Azure Container Registry | Docker images for API + UI |
+| Auth | User-Assigned Managed Identity | Secretless auth across all services |
+| Secrets | Azure Key Vault | Halo ITSM credentials for APIM policies |
+| LLM inference | Azure AI Services | GPT-4.1 + text-embedding-ada-002 |
+| Search | Azure AI Search | Vector/keyword search (RAG-ready) |
+| Observability | Application Insights | Telemetry and logging |
 
 ---
 
 ## Getting Started
 
-To explore this solution, you will:
-
-1. Review the deployed Azure resources
-2. Configure Azure API Management policies for MCP tools
-3. Register MCP tools with a Microsoft Foundry agent
-4. Test agent tool-calling behavior
-5. Validate the end-to-end workflow with the Halo ITSM integration
-
-The goal is to demonstrate how **agents can securely interact with enterprise systems using MCP and API Management**.
-
-> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)**
->
-> Prefer to deploy without Terraform? See **[docs/manual_deployment.md](docs/manual_deployment.md)**
-
----
-
-## 🎯 Overview
-
-This project provisions all Azure infrastructure via Terraform and configures an AI-powered service desk assistant that retrieves knowledge base articles directly from Halo ITSM through a secured APIM gateway.
-
-**Key capabilities:**
-- Microsoft Foundry Agent (`ServiceDeskAssistant`) grounded exclusively on Halo ITSM knowledge base data
-- Azure API Management exposing Halo ITSM APIs as an MCP server for Foundry tool integration
-- Azure AI Search for LLM RAG patterns
-- GPT-4.1 and text-embedding-ada-002 model deployments via Azure AI Services
-- Managed Identity used throughout — no credentials committed to source control
-- Full infrastructure-as-code via Terraform with modular structure
-- Automated two-phase deployment via PowerShell orchestrator
-
----
-
-## 📐 Architecture Overview
-
-This solution demonstrates how Microsoft Foundry agents interact with enterprise systems through MCP and Azure API Management.
-
-**Flow:**
-
-```
-User → Microsoft Foundry Agent → Azure API Management (MCP Server) → Halo ITSM API → Knowledge Base Articles
-```
-
-**Components:**
-
-- **Microsoft Foundry Agent** — orchestrates reasoning and tool invocation
-- **Model Context Protocol (MCP)** — exposes enterprise capabilities as tools the agent can call
-- **Azure API Management** — governs and secures tool access between the agent and backend
-- **Halo ITSM API** — example enterprise system used by the agent to retrieve knowledge base articles
-
-![design](media/design2.png)
-
-### Core Components
-
-| Component | Technology | Role |
-|---|---|---|
-| **Foundry Agent** | Microsoft Foundry, GPT-4.1 | AI service desk assistant grounded on ITSM data |
-| **API Management** | Azure APIM | Exposes Halo ITSM API as an MCP server for Foundry |
-| **Azure AI Search** | Azure Cognitive Search | Vector/keyword search for RAG |
-| **Azure AI Services (Foundry)** | Azure OpenAI | GPT-4.1 inference + text-embedding-ada-002 |
-| **Key Vault** | Azure Key Vault | Secrets and API key management |
-| **Managed Identity** | Azure User-Assigned MI | Secretless auth across all services |
-| **Storage Account** | Azure Blob Storage | Data and artifact storage |
-| **Container Registry** | Azure ACR | Docker image registry |
-| **Application Insights** | Azure Monitor | Observability and telemetry |
-
----
-
-## 📁 Project Structure
-
-<details>
-<summary>Expand to view repository layout</summary>
-
-```
-Azure-AI-Foundry-ITSM/
-├── deploy.ps1                          # Full end-to-end deployment orchestrator
-├── README.md                           # This file
-│
-├── docs/
-│   ├── Deployment_Steps.md             # Step-by-step deployment and configuration guide
-│   ├── manual_deployment.md            # Manual (portal-based) deployment guide
-│   └── prompt_examples.md             # Sample prompts for testing the agent
-│
-├── infra/                              # Infrastructure as Code (Terraform)
-│   ├── main.tf                         # Root module — wires all child modules
-│   ├── variables.tf                    # Variable declarations
-│   ├── outputs.tf                      # Output definitions
-│   ├── provider.tf                     # Azure provider configuration
-│   ├── locals.tf                       # Local computed values
-│   ├── terraform.tfvars.tpl            # Variable template (auto-populated by deploy.ps1)
-│   └── modules/
-│       ├── ai_services/                # Azure AI Services (OpenAI, Hub, Project)
-│       ├── apim/                       # API Management + Halo ITSM API
-│       ├── container_registry/         # Azure Container Registry
-│       ├── identity/                   # User-assigned Managed Identity + RBAC
-│       ├── key_vault/                  # Key Vault
-│       ├── monitoring/                 # Log Analytics + Application Insights
-│       ├── resource_group/             # Resource Group
-│       ├── search/                     # Azure AI Search
-│       └── storage/                    # Storage Account
-│
-├── Notebooks/
-│   ├── 01_azure_ai_agent-mcp.ipynb    # Foundry agent + MCP demo notebook
-│   ├── .env.sample                    # Environment variable template for notebook
-│   └── requirements.txt               # Python dependencies
-│
-└── scripts/
-    ├── Deploy-Infrastructure.ps1       # Phase 1: Terraform infrastructure deployment
-    ├── Deploy-APIM-Configuration.ps1  # Phase 2: APIM secrets deployment
-    └── common/
-        └── DeploymentFunctions.psm1   # Shared PowerShell utilities
-```
-
-</details>
-
----
-
-## 🚀 Deployment
-
 ### Prerequisites
 
-| Tool | Version | Notes |
+| Tool | Version | Install |
 |---|---|---|
-| Terraform | >= 1.5 | **Windows:** `winget install HashiCorp.Terraform` · **macOS:** `brew install hashicorp/tap/terraform` · **Linux:** [Install guide](https://developer.hashicorp.com/terraform/install) |
-| Azure CLI | Latest | [Install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) · `az login` authenticated |
-| PowerShell | 5.1+ (Windows) · 7+ (Linux/macOS) | **Windows:** Built-in (5.1) or `winget install Microsoft.PowerShell` for 7+ · **Linux/macOS:** [Install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |
-| Python | 3.10+ | Required for the notebook demo |
-| Azure subscription | — | Sufficient quota for OpenAI, APIM, AI Search. **Owner or Contributor + User Access Administrator** role required. |
-| Halo ITSM credentials | — | **API Key** (default) or **OAuth Client Credentials**. See [Deployment_Steps.md](docs/deployment_Steps.md#halo-itsm) for setup instructions for both methods. |
+| Terraform | >= 1.5 | `winget install HashiCorp.Terraform` / `brew install hashicorp/tap/terraform` |
+| Azure CLI | Latest | [Install guide](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) |
+| PowerShell | 5.1+ (Windows) / 7+ (Linux/macOS) | Built-in or `winget install Microsoft.PowerShell` |
+| Docker | Latest | Required for container builds |
+| Python | 3.11+ | Required for agent provisioning and notebook |
+| Azure subscription | — | Owner or Contributor + User Access Administrator |
+| Halo ITSM | — | API Key or OAuth Client Credentials |
 
-### 1. Clone the Repository
+### Clone the Repository
 
 ```bash
 git clone https://github.com/jonathanscholtes/Azure-AI-Foundry-ITSM.git
 cd Azure-AI-Foundry-ITSM
 ```
 
-### 2. Deploy Everything (Single Command)
+### Deploy Everything (Single Command)
 
-To find your subscription ID:
-```powershell
-az account list --output table
-```
-
-**Option A — API Key authentication (default):**
 ```powershell
 az login
 az account set --subscription "YOUR-SUBSCRIPTION-ID"
 
+# Option A: API Key authentication
 .\deploy.ps1 `
     -Subscription "YOUR-SUBSCRIPTION-ID" `
     -Location "eastus2" `
-    -Environment "dev" `
     -HaloApiKey "YOUR-HALO-API-KEY" `
     -HaloBaseUrl "https://YOURINSTANCE.haloitsm.com/api"
-```
 
-**Option B — OAuth Client Credentials (bearer token):**
-```powershell
-az login
-az account set --subscription "YOUR-SUBSCRIPTION-ID"
-
+# Option B: OAuth Client Credentials
 .\deploy.ps1 `
     -Subscription "YOUR-SUBSCRIPTION-ID" `
     -Location "eastus2" `
-    -Environment "dev" `
     -HaloAuthMethod "oauth" `
     -HaloClientId "YOUR-CLIENT-ID" `
     -HaloClientSecret "YOUR-CLIENT-SECRET" `
@@ -199,35 +88,74 @@ az account set --subscription "YOUR-SUBSCRIPTION-ID"
 
 > On Linux / macOS, prefix with `pwsh` (e.g., `pwsh ./deploy.ps1 ...`).
 
-> **Estimated time:** 15–40 minutes. API Management provisioning is the slowest resource.
+The orchestrator runs four phases automatically:
 
-**The deployment runs two phases automatically:**
-
-| Phase | Script | What it does |
+| Phase | Script | What It Does |
 |---|---|---|
-| 1 — Infrastructure | `Deploy-Infrastructure.ps1` | Provisions all Azure resources via Terraform |
-| 2 — APIM Configuration | `Deploy-APIM-Configuration.ps1` | Stores Halo credentials in Key Vault (API key or OAuth client ID/secret) |
+| 1 | `Deploy-Infrastructure.ps1` | Provisions all Azure resources via Terraform |
+| 1.5 | `Deploy-Containers.ps1` | Builds Docker images, pushes to ACR, updates Container Apps |
+| 2 | `Deploy-APIM-Configuration.ps1` | Stores Halo credentials in Key Vault for APIM policies |
+| 3 | `Deploy-FoundryAgents.ps1` | Creates/versions agents in Foundry, writes names to App Config |
+| 4 | `New-GitHubOidc.ps1` | (Optional, `-SetupGitHub`) Configures GitHub Actions OIDC |
 
-**Resources created (~15–40 min):**
-
-- Resource Group
-- Azure AI Services (GPT-4.1 + text-embedding-ada-002 deployments)
-- Azure AI Search
-- API Management (with Halo ITSM MCP server)
-- Storage Account
-- Azure Container Registry
-- Azure Key Vault (with Halo API key or OAuth client credentials)
-- User-Assigned Managed Identity + RBAC assignments
-- Application Insights + Log Analytics Workspace
+> Full step-by-step instructions: **[docs/deployment_Steps.md](docs/deployment_Steps.md)**
+>
+> Portal-based deployment: **[docs/manual_deployment.md](docs/manual_deployment.md)**
 
 ---
 
-## 🔧 Configuration
+## Post-Deployment: Configure APIM MCP Server
+
+After `deploy.ps1` completes, the APIM MCP server must be configured in the Azure Portal to expose the Halo ITSM API as agent-callable tools. Full instructions with exact field values are in **[docs/deployment_Steps.md](docs/deployment_Steps.md)**.
+
+| Step | Where | What |
+|---|---|---|
+| **1. Create MCP Server** | Azure Portal → APIM → MCP Servers | Wrap the Halo ITSM API as an MCP server and copy the endpoint URL |
+| **2. Verify Tool Registration** | [ai.azure.com](https://ai.azure.com/) → Foundry Project → Agents | Confirm MCP tools appear on the deployed agents |
+
+> The deployment script (`Deploy-FoundryAgents.ps1`) automatically registers the MCP server URL and APIM subscription key on each agent that uses tools. This step verifies the configuration is correct.
+
+---
+
+## Patterns You Can Reuse
+
+### 1. Classifier → Specialist Agent Routing
+
+A lightweight classifier agent receives every user message and returns a structured JSON intent. The Agent Framework SDK's **switch-case workflow** routes the request to the appropriate specialist agent — no application code touches the LLM response directly.
+
+```
+User message → Classifier → switch(intent)
+                              ├─ kb_lookup    → KB Lookup Agent → response
+                              ├─ ticket       → Ticket Agent    → response
+                              ├─ kb_and_ticket→ Fan-out (both)  → merged response
+                              ├─ triage       → Triage Agent    → response
+                              └─ default      → General handler
+```
+
+**Why this matters:** Adding a new specialist is a three-step process — define the agent, add a case to the classifier prompt, wire a new edge in the workflow builder. No routing logic to maintain.
+
+### 2. Fan-Out to Multiple Agents
+
+When a user query is ambiguous ("Issues with Teams performance"), the `kb_and_ticket` intent calls **both** the KB lookup and ticket agents concurrently, merges results, and filters out empty responses. This pattern extends to any scenario where multiple data sources should be checked in parallel.
+
+### 3. MCP + APIM as a Secure Enterprise Tool Gateway
+
+Enterprise APIs (Halo ITSM in this case) are exposed to agents as **MCP tools** through Azure API Management. APIM handles authentication, rate limiting, and policy enforcement — agents never hold backend credentials directly. The MCP server is a standard protocol interface, so swapping the backend system requires only an APIM configuration change.
+
+### 4. Streaming Agent Responses via HTTP
+
+The FastAPI backend streams workflow events to the React UI using **NDJSON (Newline-Delimited JSON) over HTTP**. This provides real-time feedback as agents process requests, without polling.
+
+### 5. Infrastructure-as-Code for the Full Agent Stack
+
+A single `deploy.ps1` orchestrates: Terraform infrastructure → container builds → Foundry agent provisioning → App Configuration writes. All agent names are resolved at runtime from **Azure App Configuration**, so the API service has zero hardcoded agent references.
+
+---
+
+## Configuration
 
 <details>
-<summary>Expand to view variable reference</summary>
-
-### Infrastructure Variables (`terraform.tfvars`)
+<summary>Infrastructure Variables (terraform.tfvars)</summary>
 
 | Variable | Default | Description |
 |---|---|---|
@@ -239,12 +167,16 @@ az account set --subscription "YOUR-SUBSCRIPTION-ID"
 | `managed_identity_name` | `id-ai-foundry-main` | User-assigned managed identity name |
 | `search_service_name` | `aisearch-foundry` | Azure AI Search service name |
 | `ai_services_deployment_gpt41_capacity` | `150` | GPT-4.1 deployment capacity (PTUs) |
+| `ai_services_deployment_gpt41_mini_capacity` | `150` | GPT-4.1-mini deployment capacity (PTUs, used by classifier) |
 | `ai_services_deployment_embedding_capacity` | `120` | text-embedding-ada-002 capacity (PTUs) |
 | `halo_base_url` | — | Base URL of your Halo ITSM API (e.g., `https://yourinstance.haloitsm.com/api`) |
-| `halo_auth_method` | `apikey` | Authentication method for Halo ITSM: `apikey` or `oauth` |
-| `halo_auth_url` | — | OAuth token endpoint (required when `halo_auth_method` = `oauth`, e.g., `https://yourinstance.haloitsm.com/auth/token`) |
+| `halo_auth_method` | `apikey` | Authentication method: `apikey` or `oauth` |
+| `halo_auth_url` | — | OAuth token endpoint (required when `halo_auth_method` = `oauth`) |
 
-### Key Outputs
+</details>
+
+<details>
+<summary>Key Terraform Outputs</summary>
 
 After deployment, retrieve resource endpoints with:
 
@@ -256,43 +188,103 @@ terraform output
 | Output | Description |
 |---|---|
 | `apim_gateway_url` | APIM gateway URL (base URL for MCP server) |
-| `apim_portal_url` | APIM developer portal URL |
-| `search_service_endpoint` | Azure AI Search endpoint |
-| `ai_account_endpoint` | Azure AI Services endpoint |
-| `openai_endpoint` | OpenAI-compatible endpoint |
-| `key_vault_uri` | Key Vault URI |
+| `ai_project_endpoint` | Foundry project endpoint |
 | `container_registry_login_server` | ACR login server |
+| `app_configuration_endpoint` | App Configuration endpoint |
+| `resource_group_name` | Resource group name |
+| `container_app_url` | API container app URL |
+| `container_app_ui_url` | UI container app URL |
 
 </details>
 
 ---
 
-## 🔌 Post-Deployment: Configure APIM & Foundry
+## Project Structure
 
-After `deploy.ps1` completes, four manual steps are required in the Azure Portal and Microsoft Foundry portal. Full instructions with exact field values are in **[Deployment_Steps.md](docs/deployment_Steps.md)**.
+<details>
+<summary>Expand to view repository layout</summary>
 
-| Step | Where | What |
-|---|---|---|
-| **1. Create MCP Server** | Azure Portal → APIM → MCP Servers | Wrap the Halo ITSM API as an MCP server and copy the endpoint URL |
-| **2. Register MCP Tool** | [ai.azure.com](https://ai.azure.com/) → Build → Tools | Connect the APIM MCP endpoint as a custom tool named `Halo-ITSM-MCP` |
-| **3. Create Agent** | [ai.azure.com](https://ai.azure.com/) → Build → Agents | Create `ServiceDeskAssistant` with GPT-4.1, attach `Halo-ITSM-MCP`, add system prompt |
-| **4. Notebook (optional)** | `Notebooks/.env` + `.ipynb` | Copy `.env.sample` → `.env`, fill in values from `terraform output`, run cells |
+```
+Azure-AI-Foundry-ITSM/
+├── deploy.ps1                              # Single-command deployment orchestrator
+├── agents/                                 # Foundry agent definitions (instructions + config)
+│   ├── classifier.py                       #   Intent classifier (5 intents, JSON output)
+│   ├── kb_lookup.py                        #   Knowledge base article retrieval (MCP)
+│   ├── ticket_agent.py                     #   Ticket CRUD operations (MCP)
+│   ├── triage_agent.py                     #   Issue classification & team routing (MCP)
+│   └── deploy.py                           #   Agent provisioning script (Foundry API)
+├── apps/
+│   ├── services/itsm-api/                  # FastAPI backend
+│   │   ├── src/
+│   │   │   ├── main.py                     #   NDJSON streaming endpoint
+│   │   │   ├── config.py                   #   Settings from env/App Configuration
+│   │   │   └── workflow/
+│   │   │       ├── pipeline.py             #   Workflow builder (switch-case graph)
+│   │   │       ├── handlers.py             #   Executors (routing, fan-out, finalize)
+│   │   │       ├── classifier.py           #   Classifier agent factory
+│   │   │       └── models.py              #   ClassificationResult (Pydantic)
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   └── ui/                                 # React frontend (Vite)
+│       ├── src/
+│       │   ├── components/ChatPanel.jsx    #   Chat interface with HTML rendering
+│       │   └── App.jsx
+│       ├── Dockerfile
+│       └── package.json
+├── infra/                                  # Terraform modules
+│   ├── main.tf                             #   Root module wiring all children
+│   └── modules/
+│       ├── ai_services/                    #   Foundry hub, project, model deployments
+│       ├── apim/                           #   APIM + Halo ITSM API + MCP server
+│       ├── container_registry/             #   ACR
+│       ├── identity/                       #   Managed Identity + RBAC
+│       ├── key_vault/                      #   Key Vault
+│       ├── monitoring/                     #   Log Analytics + App Insights
+│       ├── resource_group/                 #   Resource Group
+│       ├── search/                         #   Azure AI Search
+│       └── storage/                        #   Storage Account
+├── scripts/
+│   ├── Deploy-Infrastructure.ps1           # Phase 1: Terraform
+│   ├── Deploy-APIM-Configuration.ps1       # Phase 2: APIM secrets
+│   ├── Deploy-Containers.ps1               # Phase 1.5: Docker build + ACR push
+│   ├── Deploy-FoundryAgents.ps1            # Phase 3: Agent provisioning
+│   ├── New-GitHubOidc.ps1                  # Phase 4: GitHub Actions OIDC setup
+│   └── common/DeploymentFunctions.psm1     # Shared utilities
+├── Notebooks/
+│   └── 01_azure_ai_agent-mcp.ipynb         # Interactive Foundry + MCP demo
+└── docs/
+    ├── deployment_Steps.md                 # Detailed deployment walkthrough
+    ├── manual_deployment.md                # Portal-based deployment guide
+    └── prompt_examples.md                  # Sample test prompts
+```
 
-> 📋 **[View the complete step-by-step guide → Deployment_Steps.md](docs/deployment_Steps.md)**
+</details>
 
 ---
 
-## ♻️ Clean Up
+## Adapting to Your Domain
 
-After completing testing or when no longer needed, destroy all Azure resources to avoid additional charges:
+This implementation uses Halo ITSM as the example backend, but the patterns are backend-agnostic:
 
-**Windows:**
+1. **Swap the backend system** — Replace the Halo ITSM API definition in the APIM module with your own API (ServiceNow, Jira, Zendesk, or any REST API). The MCP server wraps it automatically.
+
+2. **Add a new specialist agent** — Define instructions in `agents/`, add an intent to the classifier prompt, wire a new `Case` in `pipeline.py`. The workflow builder handles the rest.
+
+3. **Change the fan-out strategy** — The `to_kb_and_ticket` handler pattern works for any scenario where you want to query multiple agents and merge results (e.g., check inventory + order status simultaneously).
+
+4. **Use a different LLM** — Change the `ModelDeployment` parameter in `deploy.ps1`. The agent instructions are model-agnostic.
+
+---
+
+## Clean Up
+
+Destroy all Azure resources to avoid additional charges:
+
 ```powershell
+# Windows
 .\deploy.ps1 -Subscription "YOUR-SUBSCRIPTION-ID" -Destroy
-```
 
-**Linux / macOS:**
-```powershell
+# Linux / macOS
 pwsh ./deploy.ps1 -Subscription "YOUR-SUBSCRIPTION-ID" -Destroy
 ```
 
@@ -304,23 +296,14 @@ terraform destroy
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
-**THIS CODE IS PROVIDED FOR EDUCATIONAL AND DEMONSTRATION PURPOSES ONLY.**
+**This code is provided for educational and demonstration purposes only.**
 
-This sample code is not intended for production use and is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
-
-**Key Points:**
-- This is a **demonstration project** showcasing agentic ITSM patterns with Microsoft Foundry and APIM MCP
-- **Not intended for production** without significant additional development, testing, and compliance review
-- Users are responsible for ensuring compliance with applicable regulations and security requirements
-- Microsoft Azure services incur costs — monitor your usage and clean up resources when done
-- No warranties or guarantees are provided regarding accuracy, reliability, or suitability for any purpose
-
-By using this code, you acknowledge that you understand these limitations and accept full responsibility for any consequences of its use.
+This sample is not intended for production use without additional development, testing, and compliance review. It is provided "AS IS" without warranty of any kind. Users are responsible for ensuring compliance with applicable regulations and security requirements. Azure services incur costs, monitor usage and clean up resources when done.

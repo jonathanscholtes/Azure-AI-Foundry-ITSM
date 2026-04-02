@@ -153,7 +153,7 @@ function Get-KeyVaultSecretUri {
     
     Write-Info "Constructing Key Vault secret URI..."
     
-    # Construct the versionless URI directly — no network call required.
+    # Construct the versionless URI directly - no network call required.
     # APIM resolves versionless URIs to the latest secret version automatically.
     $secretUri = "https://${KeyVaultName}.vault.azure.net/secrets/${SecretName}"
     Write-Success "Secret URI: $secretUri"
@@ -246,7 +246,7 @@ try {
             -ClientSecretSecretUri $clientSecretSecretUri `
             -HaloAuthUrl $HaloAuthUrl
     } else {
-        # Construct the secret URI locally — no network call needed.
+        # Construct the secret URI locally - no network call needed.
         $secretUri = Get-KeyVaultSecretUri -KeyVaultName $keyVaultName -SecretName "halo-api-key"
 
         Update-TerraformForNamedValue `

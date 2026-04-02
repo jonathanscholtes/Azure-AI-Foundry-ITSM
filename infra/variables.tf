@@ -54,6 +54,12 @@ variable "ai_services_deployment_gpt41_capacity" {
   default     = 150
 }
 
+variable "ai_services_deployment_gpt41_mini_capacity" {
+  description = "Capacity for GPT-4.1-mini deployment"
+  type        = number
+  default     = 150
+}
+
 variable "ai_services_deployment_embedding_capacity" {
   description = "Capacity for text-embedding-ada-002 deployment"
   type        = number
@@ -161,6 +167,31 @@ variable "container_registry_sku" {
   description = "SKU for Container Registry"
   type        = string
   default     = "Basic"
+}
+
+# Container App Variables
+variable "container_app_name" {
+  description = "Name of the API Container App"
+  type        = string
+  default     = "itsm-api"
+}
+
+variable "container_app_image" {
+  description = "Initial image for the API Container App (placeholder until ACR build)"
+  type        = string
+  default     = "mcr.microsoft.com/k8se/quickstart:latest"
+}
+
+variable "container_app_ui_name" {
+  description = "Name of the UI Container App"
+  type        = string
+  default     = "itsm-ui"
+}
+
+variable "container_app_ui_image" {
+  description = "Initial image for the UI Container App (placeholder until ACR build)"
+  type        = string
+  default     = "mcr.microsoft.com/k8se/quickstart:latest"
 }
 
 # APIM Named Value Variables (for Key Vault secret reference)

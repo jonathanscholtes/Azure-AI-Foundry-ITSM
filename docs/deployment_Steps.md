@@ -82,7 +82,14 @@ cd Azure-AI-Foundry-ITSM
 
 ## Step 2 — Deploy Infrastructure
 
-Log in to Azure, then run the deployment orchestrator. This runs Terraform (Phase 1) and stores the Halo credentials in Key Vault (Phase 2).
+Log in to Azure, then run the deployment orchestrator. This runs all deployment phases automatically:
+
+| Phase | Script | What It Does |
+|---|---|---|
+| 1 | `Deploy-Infrastructure.ps1` | Provisions all Azure resources via Terraform |
+| 1.5 | `Deploy-Containers.ps1` | Builds Docker images, pushes to ACR, updates Container Apps |
+| 2 | `Deploy-APIM-Configuration.ps1` | Stores Halo credentials in Key Vault for APIM policies |
+| 3 | `Deploy-FoundryAgents.ps1` | Creates/versions agents in Foundry, writes names to App Config |
 
 ```powershell
 az login
@@ -143,9 +150,11 @@ pwsh ./deploy.ps1 `
 
 **Resources created:**
 - Resource Group
-- Azure AI Services (GPT-4.1 + text-embedding-ada-002 model deployments)
+- Azure AI Services (GPT-4.1 + GPT-4.1-mini + text-embedding-ada-002 model deployments)
 - Azure AI Search
 - API Management (with Halo ITSM HTTP API pre-configured)
+- Container Apps Environment + Container Apps (API + UI)
+- Azure App Configuration (runtime agent name resolution)
 - Storage Account, Container Registry
 - Key Vault (with Halo API key or OAuth client credentials stored as secrets)
 - User-Assigned Managed Identity + RBAC assignments
@@ -168,18 +177,29 @@ Note these values:
 |---|---|
 | `apim_gateway_url` | Base URL for the APIM MCP server endpoint |
 | `apim_name` | Finding the APIM instance in the Azure Portal |
-| `apim_subscription_key` | APIM subscription key for authenticating API/MCP calls (sensitive — use `terraform output -raw apim_subscription_key`). Alternatively, retrieve it from the Azure Portal (see below). |
-| `ai_account_endpoint` | Notebook `.env` → `PROJECT_ENDPOINT` |
-| `ai_project_name` | Notebook `.env` → `PROJECT_ENDPOINT` (appended to endpoint) |
+| `ai_project_endpoint` | Foundry project endpoint (Notebook `.env` → `PROJECT_ENDPOINT`) |
+| `app_configuration_endpoint` | App Configuration endpoint (used by Container Apps at runtime) |
+| `container_app_url` | API container app URL |
+| `container_app_ui_url` | UI container app URL |
 | `resource_group_name` | Finding resources in the Azure Portal |
 
-**Retrieving the subscription key from the Azure Portal:**
+> **Note:** `deploy.ps1` Phase 3 automatically retrieves the APIM subscription key via `az rest` (Azure REST API `listSecrets`), since Terraform cannot export APIM subscription keys. If you need the key manually, see below.
+
+**Retrieving the APIM subscription key manually:**
 
 1. Navigate to your **API Management** instance in the Azure Portal
 2. In the left menu, click **Subscriptions**
 3. Find the **AI Agent Subscription** row
 4. Click the **⋯** (ellipsis) menu → **Show/hide keys**
 5. Copy the **Primary key**
+
+Or via CLI:
+```powershell
+$subId = (az account show --query id -o tsv)
+$rgName = terraform output -raw resource_group_name
+$apimName = terraform output -raw apim_name
+az rest --method post --uri "/subscriptions/$subId/resourceGroups/$rgName/providers/Microsoft.ApiManagement/service/$apimName/subscriptions/ai-agent-subscription/listSecrets?api-version=2022-08-01" --query primaryKey -o tsv
+```
 
 ---
 
@@ -200,8 +220,8 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    |---|---|
    | **Name** | `Halo-ITSM-MCP` |
    | **API** | `Halo ITSM API` *(the API deployed by Terraform)* |
-   | **Tools** | Select both operations: `knowledgebase` (GET /KBArticle) and `knowledgebasebyid` (GET /KBArticle/{id}) |
-   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows.` |
+   | **Tools** | Select all four operations: `knowledgebase` (GET /KBArticle), `knowledgebasebyid` (GET /KBArticle/{id}), `tickets` (GET /Tickets), and `ticketsbyid` (GET /Tickets/{id}) |
+   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles, list and look up support tickets, and access service desk data for IT support and incident-response workflows.` |
 
 5. Under **Subscription**, check **Subscription required** and verify the key names:
 
@@ -225,7 +245,13 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
 
 ---
 
-## Step 5 — Create the Foundry Agent
+## Step 5 — Create the Foundry Agents
+
+> **Automated deployment:** If you ran `deploy.ps1`, Phase 3 (`Deploy-FoundryAgents.ps1`) already created all four agents (classifier, kb_lookup, ticket_agent, triage_agent) and registered them in App Configuration. You can skip to **Step 6** and use this section as a reference for understanding the manual portal-based workflow.
+>
+> For full manual portal deployment, see **[manual_deployment.md](manual_deployment.md)**.
+
+The steps below show how to create the KB Lookup agent manually as an example. The same process applies to each agent — see the `agents/` folder for all agent definitions and instructions.
 
 1. Open the **[Microsoft Foundry portal](https://ai.azure.com/)** and sign in
 
@@ -289,7 +315,7 @@ The Halo ITSM HTTP API is already deployed in APIM by Terraform. This step wraps
    | **Name** | `Halo-ITSM-MCP` |
    | **Remote MCP Server endpoint** | The MCP Server URL copied from Step 4 |
    | **Authentication** | `Key-based` |
-   | **Credential** | Key: `Ocp-Apim-Subscription-Key`  Value: *(the subscription key from Step 3 — `terraform output -raw apim_subscription_key`)* |
+   | **Credential** | Key: `Ocp-Apim-Subscription-Key`  Value: *(the subscription key from Step 3)* |
 
    > The APIM API requires a subscription key. The Halo API key is injected separately as a backend header by the APIM policy — callers never handle Halo credentials directly.
 
@@ -325,21 +351,20 @@ Edit `Notebooks/.env` with the values from Step 3 and Step 4:
 
 ```env
 # AI Foundry project endpoint
-# Format: {ai_account_endpoint}/api/projects/{ai_project_name}
-# Values from: terraform output ai_account_endpoint  and  terraform output ai_project_name
+# Value from: terraform output -raw ai_project_endpoint
 PROJECT_ENDPOINT=https://<your-ai-account>.services.ai.azure.com/api/projects/<project-name>
 
 # Model deployment name
 MODEL_DEPLOYMENT_NAME=gpt-4.1
 
 # MCP server URL — the MCP endpoint from Step 4
-MCP_SERVER_URL=https://<apim-name>.azure-api.net/<mcp-path>/mcp
+MCP_SERVER_URL=https://<apim-name>.azure-api.net/halo-itsm-mcp/mcp
 
 # A local label for the MCP server connection
 MCP_SERVER_LABEL=halo-itsm-mcp
 
 # APIM subscription key — required to authenticate with the APIM gateway
-# Value from: terraform output -raw apim_subscription_key
+# Retrieve via: az rest (see Step 3) or Azure Portal → APIM → Subscriptions
 APIM_SUBSCRIPTION_KEY=<your-apim-subscription-key>
 ```
 
@@ -362,7 +387,17 @@ Open `01_azure_ai_agent-mcp.ipynb` in VS Code or Jupyter and run cells in order.
 
 ---
 
-## Step 7 — Clean Up
+## Step 7 — Configure Halo Self Service Portal Custom HTML (Optional)
+
+If you want the ITSM assistant embedded directly in the Halo Self Service Portal, follow:
+
+- [Halo Self Service Portal Custom HTML (Embedded ITSM UI)](halo_selfservice_embed.md)
+
+This guide uses the repository template `halo_serlfservice_custom.html` and shows how to wire your deployed UI/API URLs.
+
+---
+
+## Step 8 — Clean Up
 
 When finished, destroy all Azure resources to avoid ongoing charges:
 

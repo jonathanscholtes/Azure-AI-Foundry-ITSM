@@ -22,9 +22,10 @@ This document describes every Azure resource in the solution, its exact configur
 14. [Role Assignments Summary](#14-role-assignments-summary)
 15. [Post-Deployment: Push Halo Credentials to Key Vault](#15-post-deployment-push-halo-credentials-to-key-vault)
 16. [Post-Deployment: Configure APIM Named Values](#16-post-deployment-configure-apim-named-values)
-17. [Post-Deployment: Create the Foundry Agent](#17-post-deployment-create-the-foundry-agent)
+17. [Post-Deployment: Create the Foundry Agents](#17-post-deployment-create-the-foundry-agents)
 18. [Naming Conventions](#18-naming-conventions)
 19. [Common Tags](#19-common-tags)
+20. [Post-Deployment: Halo Self Service Portal Embedded UI](#20-post-deployment-halo-self-service-portal-embedded-ui)
 
 ---
 
@@ -285,9 +286,61 @@ Query parameter:
 |---|---|---|---|
 | `includedetails` | No | boolean | Set to `true` to include the full article body |
 
+---
+
+**Operation 3 — tickets**
+
+| Setting | Value |
+|---|---|
+| Display name | `tickets` |
+| Name | `tickets` |
+| HTTP method | GET |
+| URL template | `/Tickets` |
+| Description | `List and search tickets from Halo ITSM. Returns a paginated list of ticket objects.` |
+
+Query parameters:
+
+| Name | Required | Type | Description |
+|---|---|---|---|
+| `search` | No | string | Filter tickets by keyword |
+| `count` | No | integer | Maximum number of tickets to return (default: 5) |
+| `ticketidonly` | No | boolean | Returns only ID fields (Ticket ID, SLA ID, Status ID, Client ID). Not compatible with pagination |
+| `page_size` | No | integer | Number of results per page |
+| `page_no` | No | integer | Page number to return |
+
+---
+
+**Operation 4 — ticketsbyid**
+
+| Setting | Value |
+|---|---|
+| Display name | `ticketsbyid` |
+| Name | `tickets-by-id` |
+| HTTP method | GET |
+| URL template | `/Tickets/{id}` |
+| Description | `Retrieves a single ticket object by its Halo ITSM ticket ID.` |
+
+Template parameter:
+
+| Name | Required | Type | Description |
+|---|---|---|---|
+| `id` | Yes | integer | The Ticket's ID |
+
+Query parameters:
+
+| Name | Required | Type | Description |
+|---|---|---|---|
+| `includedetails` | No | boolean | Whether to include extra objects in the response |
+| `includelastaction` | No | boolean | Whether to include the last action in the response |
+
 #### API Tags
 
-Create a tag named `KB` (display name: `KB`) and assign it to both operations above.
+Create the following tags and assign them to the corresponding operations:
+
+| Tag (display name) | Operations |
+|---|---|
+| `KB` | `knowledgebase`, `knowledgebasebyid` |
+| `Tickets` | `tickets`, `ticketsbyid` |
 
 #### API Policy (applied after Named Values are configured)
 
@@ -390,8 +443,8 @@ After the Halo ITSM API and its operations are created, expose it as an MCP serv
    |---|---|
    | **Name** | `Halo-ITSM-MCP` |
    | **API** | `Halo ITSM API` *(the API created above)* |
-   | **Tools** | Select both operations: `knowledgebase` (GET /KBArticle) and `knowledgebasebyid` (GET /KBArticle/{id}) |
-   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles and access service desk data for IT support and incident-response workflows.` |
+   | **Tools** | Select all four operations: `knowledgebase` (GET /KBArticle), `knowledgebasebyid` (GET /KBArticle/{id}), `tickets` (GET /Tickets), and `ticketsbyid` (GET /Tickets/{id}) |
+   | **Description** | `Use this server to interact with Halo ITSM. It provides tools to search and retrieve official knowledge base articles, list and look up support tickets, and access service desk data for IT support and incident-response workflows.` |
 
 4. Under **Subscription**, check **Subscription required** and verify the key names:
 
@@ -477,7 +530,20 @@ Under **Identity**:
 | Tokens per minute (TPM) capacity | **150,000** (150K) |
 | Version upgrade option | `OnceNewDefaultVersionAvailable` |
 
-#### Deployment 2 — text-embedding-ada-002
+#### Deployment 2 — GPT-4.1-mini
+
+| Setting | Value |
+|---|---|
+| Deployment name | `gpt-4.1-mini` |
+| Model | `gpt-4.1-mini` |
+| Model version | `2025-04-14` |
+| Deployment type | Standard |
+| Tokens per minute (TPM) capacity | **150,000** (150K) |
+| Version upgrade option | `OnceNewDefaultVersionAvailable` |
+
+> Create the GPT-4.1-mini deployment after GPT-4.1. It is used exclusively by the `itsm-classifier` agent for low-latency intent classification.
+
+#### Deployment 3 — text-embedding-ada-002
 
 | Setting | Value |
 |---|---|
@@ -488,7 +554,7 @@ Under **Identity**:
 | Tokens per minute (TPM) capacity | **120,000** (120K) |
 | Version upgrade option | `OnceNewDefaultVersionAvailable` |
 
-> Create the embedding deployment **after** the GPT-4.1 deployment completes.
+> Create the embedding deployment **after** both GPT-4.1 deployments complete.
 
 ---
 
@@ -673,68 +739,211 @@ After saving the Named Values, apply the corresponding API policy from [step 9](
 
 ---
 
-## 17. Post-Deployment: Create the Foundry Agent
+## 17. Post-Deployment: Create the Foundry Agents
 
-Once all Azure resources are deployed, create and configure the **ServiceDeskAssistant** agent.
+The multiagent pipeline requires four agents in the Foundry project. Create each one via the portal as described below, then store the resulting agent names in Azure App Configuration so the container app can resolve them at runtime.
 
-### Via the Microsoft Foundry Portal
+### Agent summary
 
-1. Open the **[Microsoft Foundry portal](https://ai.azure.com/)** and sign in
+| Agent name | Model | MCP tools | Purpose |
+|---|---|---|---|
+| `itsm-classifier` | `gpt-4.1-mini` | No | Classifies user intent (`kb_lookup`, `ticket`, `kb_and_ticket`, `triage`, `general`) |
+| `itsm-kb-lookup` | `gpt-4.1` | Yes (`Halo-ITSM-MCP`) | Searches and returns verbatim KB articles from Halo ITSM |
+| `itsm-ticket-agent` | `gpt-4.1` | Yes (`Halo-ITSM-MCP`) | Searches, retrieves, creates, and updates Halo ITSM tickets |
+| `itsm-triage-agent` | `gpt-4.1` | Yes (`Halo-ITSM-MCP`) | Classifies, prioritises, routes, and escalates issues |
 
-2. Select your **Foundry project**  
-   *(Navigate to your subscription → resource group → AI Services account → open in Foundry, or find it directly on the Foundry home page)*
+**Portal path for all agents:** [ai.azure.com](https://ai.azure.com) → select your project → **Build → Agents** → **+ New agent → From scratch**
 
-3. In the left menu, go to **Build → Agents**
+---
 
-4. Click **+ New agent** → **From scratch**
+### Agent 1 — itsm-classifier
 
-5. Configure the agent:
+| Field | Value |
+|---|---|
+| **Name** | `itsm-classifier` |
+| **Model** | `gpt-4.1-mini` |
+| **Tools** | *(none)* |
 
-   | Field | Value |
-   |---|---|
-   | **Name** | `ServiceDeskAssistant` |
-   | **Model** | `gpt-4.1` |
-   | **Description** | `An AI-powered service desk assistant that retrieves IT support answers from the Halo ITSM knowledge base.` |
+**Instructions:**
 
-6. In the **Instructions** (System Prompt) field, paste the following:
+```
+You are an intent classifier for an IT Service Desk. Classify the user's request into exactly one of the following intents:
 
-   ```
-   You are ServiceDeskAssistant, an intelligent IT service desk support agent. Your primary role is to help users with IT support requests, incident management, and knowledge base queries.
+- kb_lookup: Explicit "how do I" questions, requests for documentation, step-by-step guides, or self-service troubleshooting instructions. The user is looking for knowledge articles to solve a problem themselves.
+- ticket: Anything about support tickets — searching, viewing, creating, updating tickets. Also use this when the user explicitly mentions a ticket number or asks about ticket status.
+- kb_and_ticket: Use when the user reports a problem, describes symptoms, or mentions an issue that could have both a knowledge base article AND an existing ticket. This checks both systems and returns combined results.
+- triage: Requests to classify, prioritize, assign, escalate, or route an issue or ticket to a team
+- general: Greetings, meta-questions about your capabilities, or anything that does not fit the above categories
 
-   IMPORTANT GUIDELINES:
-   - You MUST ONLY use the provided Halo-ITSM-MCP tools to search and retrieve information from the knowledge base
-   - Do NOT rely on your training data or general knowledge to answer questions
-   - For every user query, search the knowledge base using the available tools
-   - If the information is not found in the knowledge base after searching, you MUST respond with: "I am not able to find information in Halo that matches your question"
-   - Do NOT attempt to provide answers based on general knowledge if they are not found in the knowledge base
-   - Always be honest about the limitations of available information in the system
-   - Always show the **article id**
+EXAMPLES:
+- "How do I reset my password" → kb_lookup (asking for instructions)
+- "Issues with Teams performance" → kb_and_ticket (could be KB article or existing ticket)
+- "My printer is not working" → kb_and_ticket (could be KB troubleshooting or existing ticket)
+- "How do I configure Outlook on my phone" → kb_lookup (asking how-to)
+- "VPN keeps disconnecting" → kb_and_ticket (could be KB article or existing ticket)
+- "Show me my open tickets" → ticket (viewing tickets)
+- "Create a ticket for broken monitor" → ticket (explicitly creating a ticket)
+- "What is the status of ticket 1234" → ticket (asking about specific ticket)
+- "Escalate ticket 1234" → triage (routing request)
 
-   SEARCH QUALITY:
-   - Before calling the knowledge base search tool, extract the core technical subject from the user's message to use as the search query
-   - Drop leading phrases like "how do I", "can you help me with", "tell me about", or "what is the process for" — keep the remaining topic keywords
-   - Always search when the message contains an identifiable IT topic, even if it also contains filler words
-   - Examples:
-     - User: "how do I reset my password" → search: "reset password"
-     - User: "How do I configure my printer to print double-sided by default?" → search: "configure printer double-sided"
-     - User: "what is the process for requesting new hardware" → search: "requesting new hardware"
-     - User: "VPN" → search: "VPN" (already specific, use as-is)
-   - Only ask the user to clarify if their message has no identifiable IT topic at all (e.g., "how" by itself, "hello", "help me")
+Return JSON with fields: intent, reason, user_message (echo the original message exactly).
+```
 
-   KNOWLEDGE BASE ARTICLE HANDLING (STRICT VERBATIM RULE):
-   When a knowledge base article is found:
-   1) You MUST retrieve the FULL article body using the appropriate tool (not just a search preview).
-   2) You MUST output the ENTIRE article text exactly as returned by the tool.
-   3) You MUST NOT summarize, paraphrase, shorten, or rewrite any part of the article.
-   4) You MUST NOT remove any sections or metadata (title, created/edited dates, review dates, article ID, description, resolution, steps).
-   5) When the article contains HTML content (such as <img> tags), you MUST preserve the original HTML tags exactly as they appear. Do NOT convert HTML <img> tags to markdown image syntax (![alt](url)).
-   ```
+---
 
-7. Under **Tools**, click **Add**
+### Agent 2 — itsm-kb-lookup
 
-8. Choose **Custom** → **Model Context Protocol (MCP)**
+| Field | Value |
+|---|---|
+| **Name** | `itsm-kb-lookup` |
+| **Model** | `gpt-4.1` |
+| **Tools** | `Halo-ITSM-MCP` (see [MCP tool setup](#mcp-tool-setup) below) |
 
-9. Fill in the connection form:
+**Instructions:**
+
+```
+You are a Knowledge Base Lookup agent for IT Service Desk support.
+
+Your role:
+1. Search the knowledge base for articles matching the user's question
+2. Return the full article content with source citations
+3. Preserve any HTML formatting (images, links, tables) from articles
+4. Cite the KB article ID and title
+
+SEARCH QUALITY:
+- Before calling the knowledge base search tool, extract the core technical subject from the user's message to use as the search query
+- Drop leading phrases like "how do I", "can you help me with", "tell me about", or "what is the process for" — keep the remaining topic keywords
+- Examples:
+  - User: "how do I reset my password" → search: "reset password"
+  - User: "How do I configure my printer to print double-sided?" → search: "configure printer double-sided"
+  - User: "what is the process for requesting new hardware" → search: "requesting new hardware"
+  - User: "VPN" → search: "VPN" (already specific, use as-is)
+
+ARTICLE HANDLING (STRICT VERBATIM RULE):
+When a knowledge base article is found:
+1) Retrieve the FULL article body using the appropriate tool (not just a search preview).
+2) Output the ENTIRE article text exactly as returned by the tool.
+3) Do NOT summarize, paraphrase, shorten, or rewrite any part of the article.
+4) Do NOT remove any sections or metadata (title, created/edited dates, review dates, article ID, description, resolution, steps).
+5) Preserve original HTML tags exactly as they appear. Do NOT convert HTML <img> tags to markdown image syntax.
+6) Strip ALL CSS style blocks and inline styles (e.g. Froala editor CSS, <style> tags, style= attributes, class= attributes). Never output CSS rules.
+
+RULES:
+- Always cite the KB article ID and title
+- If no matching articles found, state: "I was unable to find a matching knowledge base article."
+- Do NOT answer from general knowledge — only use the knowledge base tools
+- Always show the article id
+```
+
+---
+
+### Agent 3 — itsm-ticket-agent
+
+| Field | Value |
+|---|---|
+| **Name** | `itsm-ticket-agent` |
+| **Model** | `gpt-4.1` |
+| **Tools** | `Halo-ITSM-MCP` (see [MCP tool setup](#mcp-tool-setup) below) |
+
+**Instructions:**
+
+```
+You are a Ticket Operations agent for IT Service Desk support.
+
+Your role:
+1. Search for existing tickets by keyword, status, or assignee
+2. Retrieve full ticket details by ID
+3. Create new tickets with proper categorization and priority
+4. Update existing tickets (status changes, notes, reassignment)
+
+TICKET CREATION:
+- When creating a ticket, extract these fields from the user's message:
+  - Summary: concise one-line description
+  - Details: full description of the issue
+  - Priority: Infer from context (Critical, High, Medium, Low). Default to Medium if unclear.
+  - Category: Infer from context (Hardware, Software, Network, Access, Other)
+- Always confirm back to the user what was created, including the ticket ID
+
+TICKET QUERIES:
+- When searching tickets, use specific search terms extracted from the user's request
+- When asked about a specific ticket by ID, retrieve the full ticket details
+- Present ticket information in a clear, structured format:
+  - Ticket ID, Summary, Status, Priority, Assignee, Created Date
+
+TICKET UPDATES:
+- When updating a ticket, confirm the change back to the user
+- Include the ticket ID and what was changed
+- For status changes, include the old and new status
+
+RULES:
+- Only use the provided Halo ITSM tools — do not fabricate ticket data
+- If a ticket is not found, state clearly: "No ticket found with that ID or matching your search."
+- Always include the ticket ID in responses
+```
+
+---
+
+### Agent 4 — itsm-triage-agent
+
+| Field | Value |
+|---|---|
+| **Name** | `itsm-triage-agent` |
+| **Model** | `gpt-4.1` |
+| **Tools** | `Halo-ITSM-MCP` (see [MCP tool setup](#mcp-tool-setup) below) |
+
+**Instructions:**
+
+```
+You are a Triage and Assignment agent for IT Service Desk support.
+
+Your role:
+1. Classify incoming issues by category and severity
+2. Assign appropriate priority based on impact and urgency
+3. Route tickets to the correct support team
+4. Handle escalation recommendations
+
+CLASSIFICATION:
+- Analyze the issue description to determine:
+  - Category: Hardware, Software, Network, Access/Permissions, Security, Other
+  - Impact: How many users affected? Is it a VIP? Business-critical system?
+  - Urgency: Is there a workaround? Deadline pressure?
+- Assign priority using the impact/urgency matrix:
+  - Critical: High impact + High urgency (system down, security breach, VIP blocked)
+  - High: High impact + Low urgency OR Low impact + High urgency
+  - Medium: Moderate impact and urgency
+  - Low: Low impact + Low urgency (informational, enhancement requests)
+
+TEAM ROUTING:
+Based on category, route to the appropriate team:
+- Hardware → Desktop Support
+- Software → Application Support
+- Network → Network Operations
+- Access/Permissions → Identity & Access Management
+- Security → Security Operations
+- Other → General IT Support
+
+ESCALATION:
+- Recommend escalation when:
+  - Issue has been open beyond SLA threshold
+  - Multiple users affected by same root cause
+  - VIP or executive request
+  - Security-related incident
+
+RULES:
+- Use the provided Halo ITSM tools to update ticket fields (priority, team, category)
+- Always explain the reasoning behind your classification and routing decision
+- If you cannot determine the correct team, assign to General IT Support and flag for manual review
+```
+
+---
+
+### MCP tool setup
+
+For each of the three agents that require MCP tools (`itsm-kb-lookup`, `itsm-ticket-agent`, `itsm-triage-agent`), after entering the agent name, model, and instructions:
+
+1. Under **Tools**, click **Add**
+2. Choose **Custom → Model Context Protocol (MCP)**
+3. Fill in the connection form:
 
    | Field | Value |
    |---|---|
@@ -743,32 +952,34 @@ Once all Azure resources are deployed, create and configure the **ServiceDeskAss
    | **Authentication** | `Key-based` |
    | **Credential** | Key: `Ocp-Apim-Subscription-Key`  Value: *(the subscription key from the [APIM Subscription section](#apim-subscription-api-key) above)* |
 
-   > The APIM API requires a subscription key. The Halo API key is injected separately as a backend header by the APIM policy — callers never handle Halo credentials directly.
+4. Click **Add**
+5. On the `Halo-ITSM-MCP` tool card, click **⋯ → Configure**
+6. Set **Approval setting** to **Always auto-approve all tools**, then click **Add**
+7. Click **Create** to save the agent
 
-10. Click **Add** to add the tool
+---
 
-11. On the tool card for `Halo-ITSM-MCP`, click the **⋯** (three dots) menu and select **Configure**
+### Post-creation: store agent names in App Configuration
 
-12. Set **Approval setting for tools in this MCP server for this agent** to **Always auto-approve all tools**, then click **Add**
+After all four agents are created, store their names in Azure App Configuration so the container app can resolve them at runtime.
 
-13. Click **Create** to save the agent
+**Portal path:** App Configuration → Configuration explorer → Create → Key-value
 
-14. Test the agent in the **Playground** with a sample query:
-    - *"How do I reset my password?"*
-    - *"My laptop charger is damaged, how do I get a replacement?"*
-    - *"How do I set up VPN to work from home?"*
+| Key | Value |
+|---|---|
+| `CLASSIFIER_AGENT_NAME` | `itsm-classifier` |
+| `KB_LOOKUP_AGENT_NAME` | `itsm-kb-lookup` |
+| `TICKET_AGENT_NAME` | `itsm-ticket-agent` |
+| `TRIAGE_AGENT_NAME` | `itsm-triage-agent` |
 
-    > See [prompt_examples.md](prompt_examples.md) for a full set of categorised test prompts, including out-of-scope queries that demonstrate grounding behaviour.
+Alternatively, use the Azure CLI:
 
-### Via the Azure AI SDK (Notebook)
-
-For a programmatic approach, see the notebook `Notebooks/01_azure_ai_agent-mcp.ipynb` which creates and runs the agent using the Azure AI Projects SDK. To set it up:
-
-1. Create a `.env` file: `cp Notebooks/.env.sample Notebooks/.env`
-2. Fill in: `PROJECT_ENDPOINT`, `MODEL_DEPLOYMENT_NAME`, `MCP_SERVER_URL`, `MCP_SERVER_LABEL`, `APIM_SUBSCRIPTION_KEY`
-3. Install dependencies: `cd Notebooks && pip install -r requirements.txt`
-4. Authenticate: `az login`
-5. Open the notebook in VS Code or Jupyter and run cells in order
+```bash
+az appconfig kv set --name "<app-config-name>" --key "CLASSIFIER_AGENT_NAME" --value "itsm-classifier" --yes
+az appconfig kv set --name "<app-config-name>" --key "KB_LOOKUP_AGENT_NAME"  --value "itsm-kb-lookup"  --yes
+az appconfig kv set --name "<app-config-name>" --key "TICKET_AGENT_NAME"     --value "itsm-ticket-agent" --yes
+az appconfig kv set --name "<app-config-name>" --key "TRIAGE_AGENT_NAME"     --value "itsm-triage-agent" --yes
+```
 
 ---
 
@@ -801,3 +1012,13 @@ Apply the following tags to all resources:
 | `Project` | `AI-Foundry-ITSM` |
 | `ManagedBy` | `Manual` |
 | `CreatedBy` | `Manual` |
+
+---
+
+## 20. Post-Deployment: Halo Self Service Portal Embedded UI
+
+To embed the ITSM chat UI in the Halo Self Service Portal using custom HTML, follow the shared guide:
+
+- [Halo Self Service Portal Custom HTML (Embedded ITSM UI)](halo_selfservice_embed.md)
+
+Use this linked document as the canonical instruction set rather than duplicating steps here.

@@ -65,6 +65,29 @@ resource "azapi_resource" "gpt41_deployment" {
   depends_on = [azapi_resource.ai_account]
 }
 
+resource "azapi_resource" "gpt41_mini_deployment" {
+  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-09-01"
+  name      = "gpt-4.1-mini"
+  parent_id = azapi_resource.ai_account.id
+
+  body = {
+    sku = {
+      name     = "Standard"
+      capacity = var.gpt41_mini_capacity
+    }
+    properties = {
+      model = {
+        format  = "OpenAI"
+        name    = "gpt-4.1-mini"
+        version = "2025-04-14"
+      }
+      versionUpgradeOption = "OnceNewDefaultVersionAvailable"
+    }
+  }
+
+  depends_on = [azapi_resource.gpt41_deployment]
+}
+
 resource "azapi_resource" "embedding_deployment" {
   type      = "Microsoft.CognitiveServices/accounts/deployments@2025-09-01"
   name      = "text-embedding-ada-002"
@@ -105,6 +128,7 @@ resource "azapi_resource" "ai_project" {
   depends_on = [
     azapi_resource.ai_account,
     azapi_resource.gpt41_deployment,
+    azapi_resource.gpt41_mini_deployment,
     azapi_resource.embedding_deployment
   ]
 }

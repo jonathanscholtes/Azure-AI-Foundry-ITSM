@@ -1,6 +1,7 @@
 NAME = "itsm-classifier"
 ENV_VAR = "CLASSIFIER_AGENT_NAME"
 USES_MCP = False
+MODEL = "gpt-4.1-mini"
 
 INSTRUCTIONS = """\
 You are an intent classifier for an IT Service Desk. Classify the user's \

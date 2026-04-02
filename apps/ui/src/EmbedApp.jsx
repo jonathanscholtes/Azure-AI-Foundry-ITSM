@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Alert, Box, Paper, Typography } from '@mui/material'
+import { Alert, Box, IconButton, Paper, Tooltip, Typography } from '@mui/material'
+import AddCommentOutlinedIcon from '@mui/icons-material/AddCommentOutlined'
 import ChatPanel from './components/ChatPanel'
 
 async function* chatStreamWithProxy(message, sessionId = '') {
@@ -115,25 +116,36 @@ export default function EmbedApp() {
           borderRadius: 3,
         }}
       >
-        <Box sx={{ px: 2.5, py: 1.5, bgcolor: '#0f2027', color: '#fff' }}>
-          <Typography variant="subtitle1" fontWeight={700}>
-            ITSM AI Assistant
-          </Typography>
-          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-            {haloFirstName ? `Welcome, ${haloFirstName}` : 'Ask a question, search knowledge, or create a support ticket.'}
-          </Typography>
-          {haloEmail && (
-            <Typography variant="caption" sx={{ display: 'block', mt: 0.75, opacity: 0.72 }}>
-              Portal user context: {haloEmail}
+        <Box sx={{ px: 2, py: 1.5, bgcolor: '#0f2027', color: '#fff', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Tooltip title="New conversation">
+            <IconButton
+              size="small"
+              onClick={() => { setMessages([]); setError('') }}
+              sx={{ color: '#fff', opacity: 0.8, flexShrink: 0, '&:hover': { opacity: 1, bgcolor: 'rgba(255,255,255,0.12)' } }}
+            >
+              <AddCommentOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+              ITSM AI Assistant
             </Typography>
-          )}
+            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+              {haloFirstName ? `Welcome, ${haloFirstName}` : 'Ask a question, search knowledge, or create a support ticket.'}
+            </Typography>
+            {haloEmail && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.72 }}>
+                Portal user context: {haloEmail}
+              </Typography>
+            )}
+          </Box>
         </Box>
         {error && (
           <Alert severity="error" sx={{ m: 2, mb: 0 }}>
             {error}
           </Alert>
         )}
-        <Box sx={{ flex: 1, minHeight: 0 }}>
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ChatPanel messages={messages} isLoading={isLoading} onSend={handleSend} />
         </Box>
       </Paper>

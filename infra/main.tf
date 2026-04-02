@@ -169,6 +169,7 @@ module "ai_services" {
   identity_id            = module.identity.id
   identity_principal_id  = module.identity.principal_id
   gpt41_capacity          = var.ai_services_deployment_gpt41_capacity
+  gpt41_mini_capacity     = var.ai_services_deployment_gpt41_mini_capacity
   embedding_capacity      = var.ai_services_deployment_embedding_capacity
   application_insights_id          = module.monitoring.id
   app_insights_instrumentation_key = module.monitoring.instrumentation_key

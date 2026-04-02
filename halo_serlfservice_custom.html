@@ -1,0 +1,128 @@
+<style>
+  #itsm-chat-toggle {
+    display: none;
+  }
+
+  #itsm-chat-bubble {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 64px;
+    height: 64px;
+    border-radius: 999px;
+    background: #0078d4;
+    color: #fff;
+    cursor: pointer;
+    z-index: 999998;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 28px/1 "Segoe UI", sans-serif;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  #itsm-chat-frame-wrap {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 72px;
+    height: 72px;
+    z-index: 999999;
+    transition: width 0.22s ease, height 0.22s ease;
+    pointer-events: none;
+  }
+
+  #itsm-chat-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 28px;
+    background: transparent;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, border-radius 0.22s ease;
+  }
+
+  #itsm-chat-close {
+    display: none;
+    position: fixed;
+    right: 32px;
+    bottom: 588px;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: rgba(15, 32, 39, 0.92);
+    color: #fff;
+    cursor: pointer;
+    z-index: 1000000;
+    align-items: center;
+    justify-content: center;
+    font: 22px/1 "Segoe UI", sans-serif;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  #itsm-chat-toggle:checked ~ #itsm-chat-bubble {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.85);
+  }
+
+  #itsm-chat-toggle:checked ~ #itsm-chat-frame-wrap {
+    width: min(420px, calc(100vw - 24px));
+    height: min(620px, calc(100vh - 24px));
+    pointer-events: auto;
+  }
+
+  #itsm-chat-toggle:checked ~ #itsm-chat-frame-wrap #itsm-chat-frame {
+    opacity: 1;
+    pointer-events: auto;
+    border-radius: 24px;
+  }
+
+  #itsm-chat-toggle:checked ~ #itsm-chat-close {
+    display: flex;
+  }
+
+  @media (max-width: 640px) {
+    #itsm-chat-bubble {
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #itsm-chat-frame-wrap {
+      right: 8px;
+      bottom: 8px;
+    }
+
+    #itsm-chat-toggle:checked ~ #itsm-chat-frame-wrap {
+      width: calc(100vw - 16px);
+      height: calc(100vh - 16px);
+    }
+
+    #itsm-chat-toggle:checked ~ #itsm-chat-close {
+      right: 18px;
+      bottom: calc(100vh - 42px);
+    }
+  }
+</style>
+
+<input type="checkbox" id="itsm-chat-toggle" />
+
+<label for="itsm-chat-toggle" id="itsm-chat-bubble" aria-label="Open ITSM AI Assistant">
+  &#128172;
+</label>
+
+<div id="itsm-chat-frame-wrap">
+  <iframe
+    id="itsm-chat-frame"
+    src="https://itsm-ui.contoso.eastus2.azurecontainerapps.io/embed.html"
+    title="ITSM AI Assistant"
+    allow="clipboard-write">
+  </iframe>
+</div>
+
+<label for="itsm-chat-toggle" id="itsm-chat-close" aria-label="Close ITSM AI Assistant">
+  &times;
+</label>

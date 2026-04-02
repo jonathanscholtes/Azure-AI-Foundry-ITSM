@@ -11,7 +11,15 @@ import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber'
 import SearchIcon from '@mui/icons-material/ManageSearch'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    img: [...(defaultSchema.attributes?.img || []), 'style', 'title'],
+  },
+}
 
 const AGENT_LABELS = {
   classifier: 'Classifier',
@@ -109,12 +117,13 @@ function MessageBubble({ msg }) {
             },
             '& ul, & ol': { pl: 2.5, my: 0.5 },
             '& li': { mb: 0.25 },
+            '& img': { maxWidth: '100%', height: 'auto', display: 'block', borderRadius: 1, my: 1 },
           }}
         >
           {isUser ? (
             <Typography variant="body2">{msg.text}</Typography>
           ) : (
-            <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeSanitize]}>{msg.text || '...'}</ReactMarkdown>
+            <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}>{msg.text || '...'}</ReactMarkdown>
           )}
         </Paper>
       </Box>

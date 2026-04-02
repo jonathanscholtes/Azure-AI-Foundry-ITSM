@@ -112,7 +112,7 @@ class AgentDeployer:
             )
         ]
 
-    def _create_or_update(self, agent_name: str, instructions: str, tools: list) -> str:
+    def _create_or_update(self, agent_name: str, instructions: str, tools: list, model: Optional[str] = None) -> str:
         """Create a new version of a named agent and return its ID.
 
         Always calls create_version() so each CI/CD run produces an immutable,
@@ -123,7 +123,7 @@ class AgentDeployer:
         KEEP_VERSIONS = 3
 
         definition = PromptAgentDefinition(
-            model=self.model_deployment,
+            model=model or self.model_deployment,
             instructions=instructions,
             tools=tools or None,
         )
@@ -192,10 +192,14 @@ class AgentDeployer:
         try:
             for agent_mod in modules:
                 tools = mcp_tools if agent_mod.USES_MCP else []
+                agent_model = getattr(agent_mod, "MODEL", None)
+                if agent_model:
+                    logger.info("  Override model for %-25s -> %s", agent_mod.NAME, agent_model)
                 agent_id = self._create_or_update(
                     agent_mod.NAME,
                     agent_mod.INSTRUCTIONS,
                     tools,
+                    model=agent_model,
                 )
                 results[agent_mod.NAME] = agent_id
 

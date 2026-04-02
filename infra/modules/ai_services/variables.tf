@@ -39,6 +39,12 @@ variable "gpt41_capacity" {
   default     = 150
 }
 
+variable "gpt41_mini_capacity" {
+  description = "Capacity for GPT-4.1-mini deployment"
+  type        = number
+  default     = 150
+}
+
 variable "embedding_capacity" {
   description = "Capacity for text-embedding-ada-002 deployment"
   type        = number

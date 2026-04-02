@@ -26,7 +26,7 @@ React UI → FastAPI (Container App) → Agent Framework Workflow
 
 | Component | Service | Role |
 |---|---|---|
-| Agent orchestration | Microsoft Foundry (GPT-4.1) | Hosts all agents with server-side instructions |
+| Agent orchestration | Microsoft Foundry (GPT-4.1 / GPT-4.1-mini) | Hosts all agents with server-side instructions; classifier uses GPT-4.1-mini for lower latency |
 | Workflow engine | Agent Framework SDK | Switch-case routing, fan-out, streaming |
 | API backend | Azure Container Apps (FastAPI) | Workflow gateway, NDJSON streaming |
 | Frontend | Azure Container Apps (React/Vite) | Service desk UI |
@@ -167,6 +167,7 @@ A single `deploy.ps1` orchestrates: Terraform infrastructure → container build
 | `managed_identity_name` | `id-ai-foundry-main` | User-assigned managed identity name |
 | `search_service_name` | `aisearch-foundry` | Azure AI Search service name |
 | `ai_services_deployment_gpt41_capacity` | `150` | GPT-4.1 deployment capacity (PTUs) |
+| `ai_services_deployment_gpt41_mini_capacity` | `150` | GPT-4.1-mini deployment capacity (PTUs, used by classifier) |
 | `ai_services_deployment_embedding_capacity` | `120` | text-embedding-ada-002 capacity (PTUs) |
 | `halo_base_url` | — | Base URL of your Halo ITSM API (e.g., `https://yourinstance.haloitsm.com/api`) |
 | `halo_auth_method` | `apikey` | Authentication method: `apikey` or `oauth` |

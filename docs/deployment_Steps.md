@@ -150,7 +150,7 @@ pwsh ./deploy.ps1 `
 
 **Resources created:**
 - Resource Group
-- Azure AI Services (GPT-4.1 + text-embedding-ada-002 model deployments)
+- Azure AI Services (GPT-4.1 + GPT-4.1-mini + text-embedding-ada-002 model deployments)
 - Azure AI Search
 - API Management (with Halo ITSM HTTP API pre-configured)
 - Container Apps Environment + Container Apps (API + UI)
@@ -387,7 +387,17 @@ Open `01_azure_ai_agent-mcp.ipynb` in VS Code or Jupyter and run cells in order.
 
 ---
 
-## Step 7 — Clean Up
+## Step 7 — Configure Halo Self Service Portal Custom HTML (Optional)
+
+If you want the ITSM assistant embedded directly in the Halo Self Service Portal, follow:
+
+- [Halo Self Service Portal Custom HTML (Embedded ITSM UI)](halo_selfservice_embed.md)
+
+This guide uses the repository template `halo_serlfservice_custom.html` and shows how to wire your deployed UI/API URLs.
+
+---
+
+## Step 8 — Clean Up
 
 When finished, destroy all Azure resources to avoid ongoing charges:
 

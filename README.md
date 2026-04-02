@@ -8,7 +8,7 @@ The patterns demonstrated here — classifier-based routing, fan-out to parallel
 
 ## Architecture
 
-![Architecture Diagram](media/design2.png)
+![Architecture Diagram](media/design3.png)
 
 ### Workflow
 
